@@ -620,6 +620,7 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
     .mg-edit .fld select,.mg-edit .fld input{min-width:100px}
   }
 
+
 </style>
 </head>
 <body>
@@ -1385,7 +1386,7 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip;
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v18</span>';
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   document.getElementById("tabs").innerHTML=

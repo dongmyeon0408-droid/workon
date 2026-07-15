@@ -633,6 +633,22 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
   .cat-tag{background:var(--surface-card); color:var(--body-c); font-size:11px; font-weight:500; padding:2px 9px; border-radius:9999px}
   .item-meta{align-items:center}
 
+
+  /* ═══ 공동 담당 · 프로젝트 연결 ═══ */
+  .co-row{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px}
+  .co-chip{padding:6px 14px; font-size:12.5px; font-weight:600; background:var(--canvas); border:1px solid var(--hairline); border-radius:9999px; color:var(--body-c)}
+  .co-chip.on{background:var(--primary); color:var(--on-dark); border-color:var(--primary)}
+  @media(hover:hover){.co-chip:hover{border-color:var(--ink)}}
+  .chip.chain{background:#e0f2fe; color:#0369a1}
+  .chain-steps{margin-top:8px; background:var(--canvas); border:1px solid var(--hairline-soft); border-radius:10px; padding:6px 10px}
+  .chain-step{display:flex; gap:9px; align-items:center; padding:8px 2px; border-bottom:1px solid var(--hairline-soft); cursor:pointer; font-weight:400}
+  .chain-step:last-child{border-bottom:none}
+  .chain-step.cur{background:var(--surface-soft); border-radius:8px; padding-left:8px; padding-right:8px}
+  .chain-no{width:22px; height:22px; border-radius:9999px; background:var(--surface-card); color:var(--body-c); font-size:11.5px; font-weight:600; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0}
+  .chain-no.done{background:var(--primary); color:var(--on-dark)}
+  .chain-text{flex:1; min-width:0; font-size:13px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .chain-wk{font-size:11px; color:var(--muted-soft); white-space:nowrap}
+  @media(hover:hover){.chain-step:hover{background:var(--surface-soft); border-radius:8px}}
 </style>
 </head>
 <body>
@@ -756,6 +772,9 @@ const ui={
 };
 
 const memberNames=()=>state.members.map(m=>m.name);
+function ownersOf(it){return String(it.owner||"").split(",").map(s=>s.trim()).filter(Boolean);}
+function primaryOwner(it){return ownersOf(it)[0]||"";}
+function hasOwner(it,name){return ownersOf(it).includes(name);}
 function myPartOf(name){const m=state&&state.members.find(x=>x.name===name);return m&&PARTS.includes(m.part)?m.part:null;}
 function orderedParts(){
   const p=state?myPartOf(state.me):null;
@@ -807,6 +826,8 @@ function normalizeState(s){
     if(isEv(it)){ if(!it.part)it.part="인사"; }
     else if(!it.part||!PARTS.includes(it.part))it.part=guessPart(it.category);
     it.dueDate=normDateOnly(it.dueDate);
+    it.chain=it.chain||"";it.step=it.step||"";
+    it.owner=ownersOf(it).join(", ")||it.owner;
     if(it.isEvent==null)it.isEvent="";
     it.history=it.history||[];it.comments=it.comments||[];
   }));
@@ -1003,7 +1024,7 @@ function runNotiDiff(){
   Object.keys(state.weeks).forEach(wk=>state.weeks[wk].items.forEach(it=>{
     const prev=snap[it.id];
     if(!prev){
-      if(it.owner===me){
+      if(hasOwner(it,me)){
         if(isEv(it))pushNoti("내 일정이 등록되었습니다: "+it.text,it.id);
         else pushNoti("새 업무가 배정되었습니다: "+it.text,it.id);
       }
@@ -1013,12 +1034,12 @@ function runNotiDiff(){
     if(cms.length>prev.c){
       cms.slice(prev.c).forEach(cm=>{
         if(cm.author===me)return;
-        if(it.owner===me)pushNoti(cm.author+" 님이 내 업무에 코멘트: \""+cm.text+"\" — "+it.text,it.id);
+        if(hasOwner(it,me))pushNoti(cm.author+" 님이 내 업무에 코멘트: \""+cm.text+"\" — "+it.text,it.id);
         else if(me&&String(cm.text).indexOf(me)>=0)pushNoti(cm.author+" 님이 코멘트에서 나를 언급: \""+cm.text+"\" — "+it.text,it.id);
       });
     }
-    if(prev.o!==it.owner&&it.owner===me&&!isEv(it))pushNoti("업무 담당자가 나로 변경되었습니다: "+it.text,it.id);
-    if(prev.s!==it.status&&it.owner===me&&!isEv(it)){
+    if(prev.o!==it.owner&&hasOwner(it,me)&&String(prev.o||"").split(",").map(s=>s.trim()).indexOf(me)<0&&!isEv(it))pushNoti("업무 담당자로 지정되었습니다: "+it.text,it.id);
+    if(prev.s!==it.status&&hasOwner(it,me)&&!isEv(it)){
       const from=STATUS[prev.s]?STATUS[prev.s].label:prev.s;
       pushNoti("내 업무 상태가 변경되었습니다: "+it.text+" ("+from+" → "+STATUS[it.status].label+")",it.id);
     }
@@ -1069,7 +1090,7 @@ function runMsgNotiDiff(){
   saveMsgSeen();
 }
 function sendMessage(kind){
-  if(srvVersion!=="5"){alert("메시지·칭찬 기능은 Apps Script 코드 v5 재배포 후 사용할 수 있습니다.");return;}
+  if(mode==="shared"&&!(Number(srvVersion)>=5)){alert("메시지·칭찬 기능은 Apps Script 코드 v5 이상 재배포 후 사용할 수 있습니다.");return;}
   const to=(document.getElementById(kind==="kudos"?"kd-to":"dm-to")||{}).value||"";
   const textEl=document.getElementById(kind==="kudos"?"kd-text":"dm-text");
   let text=(textEl?textEl.value:"").trim();
@@ -1106,7 +1127,7 @@ function renderMsg(){
   const msgs=(state.msgs||[]).slice().sort((a,b)=>Number(b.ts)-Number(a.ts));
   const others=memberNames().filter(n=>n!==me);
   let html="";
-  if(srvVersion!=="5"){
+  if(mode==="shared"&&!(Number(srvVersion)>=5)){
     html+='<div class="carry-banner" style="background:#fef3c7;border:1px solid #fcd34d;color:#78350f;margin-bottom:16px"><div>'+
       '<strong>메시지·칭찬 기능은 서버 코드 v5가 필요합니다.</strong>'+
       '<div style="font-size:12.5px;margin-top:5px;line-height:1.6">Apps Script에 <b>코드 v5</b>를 붙여넣고 저장 → [배포]→[배포 관리]→연필→버전 "새 버전"→배포. 기존 데이터는 그대로 유지되고 messages 탭이 자동 생성됩니다.</div></div></div>';
@@ -1289,7 +1310,7 @@ function buildReport(){
   const prevKey=shiftWeek(ui.weekKey,-1);
   const filt=a=>{
     let r=a.filter(i=>!isEv(i));
-    if(owner!=="전체")r=r.filter(i=>i.owner===owner);
+    if(owner!=="전체")r=r.filter(i=>hasOwner(i,owner));
     if(ui.partFilter!=="전체")r=r.filter(i=>(i.part||"인사")===ui.partFilter);
     return r;
   };
@@ -1307,11 +1328,11 @@ function buildReport(){
 
 /* ── CSV ── */
 function downloadCSV(){
-  const rows=[["구분","업무번호","주차","파트","담당자","분류","업무명","상세계획","우선순위","완료예정일","상태","결과","이월사유","이월횟수","코멘트"]];
+  const rows=[["구분","업무번호","주차","파트","담당자","분류","프로젝트","단계","업무명","상세계획","우선순위","완료예정일","상태","결과","이월사유","이월횟수","코멘트"]];
   const e=v=>'"'+String(v??"").replaceAll('"','""')+'"';
   Object.keys(state.weeks).sort().forEach(wk=>{
     state.weeks[wk].items.forEach(it=>{
-      rows.push([isEv(it)?"일정":"업무",it.taskNo,weekLabel(wk).short,it.part||"인사",it.owner,it.category,it.text,it.detail,it.priority,it.dueDate,
+      rows.push([isEv(it)?"일정":"업무",it.taskNo,weekLabel(wk).short,it.part||"인사",it.owner,it.category,it.chain||"",it.step||"",it.text,it.detail,it.priority,it.dueDate,
         (STATUS[it.status]||{}).label||it.status,it.result,it.carryReason,(it.history||[]).length,
         (it.comments||[]).map(c=>c.author+": "+c.text).join(" / ")].map(e));
     });
@@ -1350,7 +1371,8 @@ const PRIO_SORT={"긴급":0,"높음":1,"보통":2,"낮음":3};
 function sortItems(arr){
   return arr.slice().sort((a,b)=>
     (STATUS_SORT[a.status]??9)-(STATUS_SORT[b.status]??9)||
-    (PRIO_SORT[a.priority]??9)-(PRIO_SORT[b.priority]??9));
+    (PRIO_SORT[a.priority]??9)-(PRIO_SORT[b.priority]??9)||
+    ((a.chain&&a.chain===b.chain)?((+a.step||999)-(+b.step||999)):0));
 }
 function sortedCatEntries(part,items){
   const m=groupByCategory(items);
@@ -1375,7 +1397,7 @@ function pchip(part,extra){
 
 function topWarnings(){
   let h="";
-  if(mode==="shared"&&lastLoad&&srvVersion!=="4"&&srvVersion!=="5"){
+  if(mode==="shared"&&lastLoad&&!(Number(srvVersion)>=4)){
     h+='<div class="carry-banner" style="background:#fee2e2;border:1px solid #fca5a5;color:#7f1d1d;margin-bottom:16px"><div>'+
       '<strong>⚠ 구글 시트의 Apps Script 코드가 구버전입니다.</strong> 파트·직급·역할·일정 수정이 저장되지 않고 되돌아갑니다.'+
       '<div style="font-size:12.5px;margin-top:5px;line-height:1.6">해결: Apps Script에 <b>코드 v4</b>를 붙여넣고 저장 → <b>[배포] → [배포 관리] → 연필(수정) → 버전 "새 버전" → 배포</b>. 저장만 하면 반영되지 않습니다. 완료 후 ↻ 새로고침하면 이 경고가 사라집니다.</div></div></div>';
@@ -1421,7 +1443,7 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v19</span>';
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v20</span>';
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   document.getElementById("tabs").innerHTML=
@@ -1479,7 +1501,7 @@ function partSegHTML(current,action){
   ).join("")+"</div>";
 }
 
-function itemCardHTML(it,showOwner){
+function itemCardHTML(it,showOwner,groupOwner){
   const carry=(it.history||[]).length;
   const overdue=it.dueDate&&it.dueDate<todayKey()&&!["done","cancelled"].includes(it.status);
   const expanded=ui.expandedId===it.id;
@@ -1488,8 +1510,10 @@ function itemCardHTML(it,showOwner){
   if(carry>0)chips+='<span class="chip carry'+(carry>=2?" hot":"")+'">이월 '+(carry+1)+'주째</span>';
   if(it.priority==="긴급")chips+='<span class="chip prio-urgent">긴급</span>';
   else if(it.priority==="높음")chips+='<span class="chip prio-high">높음</span>';
+  if(groupOwner&&ownersOf(it).length>1)chips+='<span class="chip" style="background:var(--surface-card);color:var(--body-c)">'+(primaryOwner(it)===groupOwner?"주담당":"공동")+"</span>";
+  if(it.chain)chips+='<span class="chip chain">🔗 '+esc(it.chain)+(it.step?" · "+esc(it.step)+"단계":"")+"</span>";
   if((it.comments||[]).length)chips+='<span class="chip cmt">💬 '+it.comments.length+"</span>";
-  let meta=(showOwner?ownerChip(it.owner):"")+'<span class="no">'+esc(it.taskNo)+"</span>";
+  let meta=(showOwner?ownersOf(it).map(n=>ownerChip(n)).join(""):"")+'<span class="no">'+esc(it.taskNo)+"</span>";
   if(ui.view==="week"&&ui.weekGroup==="owner")meta+='<span class="cat-tag">'+esc(it.category)+"</span>";
   if(it.dueDate)meta+='<span class="due'+(overdue?" over":"")+'">~'+it.dueDate.slice(5).replace("-",".")+(overdue?" 초과":"")+"</span>";
   if(it.carryReason)meta+="<span>사유: "+esc(it.carryReason)+"</span>";
@@ -1514,10 +1538,32 @@ function itemCardHTML(it,showOwner){
       '<label class="fld">우선순위<select data-field="priority" data-id="'+it.id+'">'+
         PRIORITIES.map(p=>'<option'+(it.priority===p?" selected":"")+">"+p+"</option>").join("")+"</select></label>"+
       '<label class="fld">완료 예정일<input type="date" data-field="dueDate" data-id="'+it.id+'" value="'+esc(it.dueDate)+'"></label>'+
-      '<label class="fld">담당자<select data-field="owner" data-id="'+it.id+'">'+
-        memberNames().map(m=>'<option'+(it.owner===m?" selected":"")+">"+esc(m)+"</option>").join("")+"</select></label>"+
+      '<label class="fld">주담당<select data-field="ownerPrimary" data-id="'+it.id+'">'+
+        memberNames().map(m=>'<option'+(primaryOwner(it)===m?" selected":"")+">"+esc(m)+"</option>").join("")+"</select></label>"+
       '<label class="fld">분류<input data-field="category" data-id="'+it.id+'" list="cat-list-'+it.part+'" value="'+esc(it.category)+'"></label>'+
-      "</div>";
+      '<label class="fld">프로젝트(연결)<input data-field="chain" data-id="'+it.id+'" list="chain-list" value="'+esc(it.chain||"")+'" placeholder="예: 근태솔루션 도입"'+(Number(srvVersion)>=6||mode!=="shared"?"":' title="저장하려면 서버 코드 v6 재배포 필요"')+"></label>"+
+      '<label class="fld">단계<input type="number" min="1" max="99" data-field="step" data-id="'+it.id+'" value="'+esc(it.step||"")+'" placeholder="순번"></label>'+
+      "</div>"+
+      '<div class="fld block" style="margin-top:10px">공동 담당 <span style="font-weight:400;color:var(--muted)">— 함께 진행하는 팀원을 클릭 (주담당 외 최대 2~3명 권장)</span>'+
+      '<div class="co-row">'+memberNames().filter(m=>m!==primaryOwner(it)).map(m=>
+        '<button class="co-chip'+(hasOwner(it,m)?" on":"")+'" data-action="co-toggle" data-id="'+it.id+'" data-val="'+esc(m)+'">'+esc(m)+"</button>").join("")+"</div></div>";
+    if(it.chain){
+      const steps=allItems().filter(r=>!isEv(r.it)&&r.it.chain===it.chain).sort((a,b)=>(+a.it.step||99)-(+b.it.step||99));
+      if(steps.length>1){
+        html+='<div class="fld block" style="margin-top:12px">🔗 프로젝트 진행 단계 — '+esc(it.chain)+' <span style="font-weight:400;color:var(--muted)">('+steps.filter(s=>s.it.status==="done").length+"/"+steps.length+' 완료)</span><div class="chain-steps">';
+        steps.forEach(s=>{
+          const cur=s.it.id===it.id;
+          html+='<div class="chain-step'+(cur?" cur":"")+'" data-action="jump" data-id="'+s.it.id+'" data-val="'+s.wk+'">'+
+            '<span class="chain-no'+(s.it.status==="done"?" done":"")+'">'+(s.it.step||"·")+"</span>"+
+            '<span class="sr-badge '+statusClass(s.it.status)+'" style="font-size:10.5px;padding:1px 8px">'+STATUS[s.it.status].label+"</span>"+
+            '<span class="chain-text">'+esc(s.it.text)+(cur?' <b style="color:var(--ink)">(현재)</b>':"")+"</span>"+
+            '<span class="chain-wk">'+weekLabel(s.wk).short+"</span></div>";
+        });
+        const next=steps.find(s=>s.it.status!=="done"&&s.it.status!=="cancelled"&&(+s.it.step||99)>(+it.step||0));
+        if(it.status==="done"&&next)html+='<div class="note" style="margin-top:6px">→ 다음 단계: <b>'+esc(next.it.text)+"</b> ("+esc(next.it.owner)+")</div>";
+        html+="</div></div>";
+      }
+    }
     if(["carried","hold"].includes(it.status)){
       html+='<label class="fld block">'+(it.status==="carried"?"이월":"보류")+' 사유 <span class="req">*</span>'+
         '<select data-field="carryReason" data-id="'+it.id+'"'+(it.carryReason?"":' class="need"')+' style="width:100%">'+
@@ -1547,6 +1593,9 @@ function itemCardHTML(it,showOwner){
 
 function catDatalists(){
   let html="";
+  const chains=new Set();
+  Object.values(state.weeks).forEach(w=>w.items.forEach(it=>{if(it.chain)chains.add(it.chain);}));
+  html+='<datalist id="chain-list">'+[...chains].map(c=>'<option value="'+esc(c)+'">').join("")+"</datalist>";
   for(const part of PARTS){
     const set=new Set(PART_CATS[part]);
     Object.values(state.weeks).forEach(w=>w.items.forEach(it=>{
@@ -1560,7 +1609,7 @@ function catDatalists(){
 function renderWeek(){
   ensureWeek(ui.weekKey);
   const all=state.weeks[ui.weekKey].items.filter(i=>!isEv(i));
-  let items=ui.ownerFilter==="전체"?all:all.filter(i=>i.owner===ui.ownerFilter);
+  let items=ui.ownerFilter==="전체"?all:all.filter(i=>hasOwner(i,ui.ownerFilter));
   if(ui.partFilter!=="전체")items=items.filter(i=>(i.part||"인사")===ui.partFilter);
   const done=items.filter(i=>i.status==="done").length;
   const active=items.filter(i=>i.status!=="cancelled").length;
@@ -1607,9 +1656,9 @@ function renderWeek(){
       const partOwners=state.members.filter(m=>m.part===part||(m.part==="팀"&&part===orderedParts()[0]))
         .sort((a,b)=>(order[a.role]??9)-(order[b.role]??9));
       const ownerNames=partOwners.map(m=>m.name);
-      pItems.forEach(i=>{if(!ownerNames.includes(i.owner))ownerNames.push(i.owner);});
+      pItems.forEach(i=>ownersOf(i).forEach(n=>{if(!ownerNames.includes(n))ownerNames.push(n);}));
       for(const oname of ownerNames){
-        const oItems=sortItems(pItems.filter(i=>i.owner===oname));
+        const oItems=sortItems(pItems.filter(i=>hasOwner(i,oname)));
         if(!oItems.length)continue;
         const om=findMember(oname);
         const oDone=oItems.filter(i=>i.status==="done").length;
@@ -1618,7 +1667,7 @@ function renderWeek(){
           '<span class="owner-name">'+esc(om?displayName(om):oname)+"</span>"+
           (om&&om.role!=="파트원"?'<span class="role-chip">'+esc(om.role)+"</span>":"")+
           '<span class="cat-count">'+oDone+"/"+oItems.length+"</span></div>";
-        oItems.forEach(it=>{html+=itemCardHTML(it,false);});
+        oItems.forEach(it=>{html+=itemCardHTML(it,false,oname);});
         html+="</div>";
       }
     }else{
@@ -1919,7 +1968,7 @@ function renderDash(){
   const sorted=[...state.members].sort((a,b)=>(order[a.part]??9)-(order[b.part]??9)||(a.role==="파트장"?-1:1));
   sorted.forEach(mem=>{
     const m=mem.name;
-    const items=all.filter(i=>i.owner===m);
+    const items=all.filter(i=>hasOwner(i,m));
     const done=items.filter(i=>i.status==="done").length;
     const prog=items.filter(i=>i.status==="progress").length;
     const carried=items.filter(i=>(i.carriedFrom&&!["done","cancelled"].includes(i.status))||i.status==="carried").length;
@@ -1968,7 +2017,7 @@ function renderDash(){
 /* ── 담당자 (조직) ── */
 function personCardHTML(mem){
   const wk=fmtKey(mondayOf(new Date()));
-  const items=(((state.weeks[wk]||{}).items)||[]).filter(i=>!isEv(i)&&i.owner===mem.name);
+  const items=(((state.weeks[wk]||{}).items)||[]).filter(i=>!isEv(i)&&hasOwner(i,mem.name));
   const done=items.filter(i=>i.status==="done").length;
   const prog=items.filter(i=>i.status==="progress").length;
   const carried=items.filter(i=>(i.carriedFrom&&!["done","cancelled"].includes(i.status))||i.status==="carried").length;
@@ -2093,6 +2142,8 @@ function renderGuide(){
   +'<div class="guide-rule">✅ 다른 사람이 방금 입력한 내용은 상단 <span class="g-kbd">↻</span> 새로고침으로 받아옵니다 (탭 복귀 시 자동 갱신).</div>'
   +'<div class="guide-rule">✅ 팀장님은 앱 없이 <b>구글 시트를 직접 열어도</b> 전체 업무가 표로 정리되어 보입니다. 연말 정리는 [엑셀(CSV)] 다운로드.</div>'
   +'<div class="guide-rule">🔔 상단 벨 버튼에서 <b>알림</b>을 확인하세요 — 내 업무에 코멘트가 달리거나, 새 업무가 배정되거나, 코멘트에 내 이름이 언급되면 표시됩니다. [브라우저 알림 켜기]를 누르면 페이지가 열려 있는 동안 화면 알림도 받습니다.</div>'
+  +'<div class="guide-rule">👥 <b>공동 담당</b>: 업무 [상세 ▼]에서 함께 진행할 팀원을 클릭하면 담당자가 여러 명이 됩니다. 모두의 화면·현황·알림에 잡히며, 첫 번째가 주담당입니다.</div>'
+  +'<div class="guide-rule">🔗 <b>프로젝트 연결</b>: 순서대로 진행되는 업무들은 [상세 ▼]에서 같은 프로젝트 이름 + 단계 번호를 넣으세요. 카드에 🔗 배지가 붙고, 상세에서 전체 단계 진행 상황과 다음 단계를 한눈에 볼 수 있습니다.</div>'
   +'<div class="guide-rule">🧹 <b>[일괄 관리]</b> 탭에서 여러 업무를 체크해 한 번에 삭제하거나 담당자·상태·주차를 일괄 변경할 수 있습니다. 계획을 처음부터 다시 짤 때 유용합니다.</div>'
   +'<div class="guide-rule">⚠️ 업무 삭제는 되돌릴 수 없습니다. 취소된 업무는 삭제보다 상태를 "취소"로 바꾸는 걸 권장합니다 (이력 보존).</div>'
   +'<div class="guide-rule">⚠️ 이 사이트 주소를 아는 사람은 누구나 데이터를 볼 수 있습니다. <b>링크는 팀 내부에서만</b> 공유하고, 평가·노무 등 민감 내용은 올리지 마세요.</div>'
@@ -2107,7 +2158,7 @@ function mgrList(){
       if(ui.mgrKind==="일정"&&!isEv(it))return;
       if(ui.mgrWeek!=="all"&&wk!==ui.mgrWeek)return;
       if(ui.mgrPart!=="전체"&&(it.part||"인사")!==ui.mgrPart)return;
-      if(ui.mgrOwner!=="전체"&&it.owner!==ui.mgrOwner)return;
+      if(ui.mgrOwner!=="전체"&&!hasOwner(it,ui.mgrOwner))return;
       if(ui.mgrStatus!=="전체"&&STATUS[it.status].label!==ui.mgrStatus)return;
       out.push({wk,it});
     });
@@ -2177,7 +2228,7 @@ function searchResultsHTML(){
   Object.keys(state.weeks).sort().reverse().forEach(wk=>{
     state.weeks[wk].items.forEach(it=>{
       if(ui.searchPart!=="전체"&&(it.part||"인사")!==ui.searchPart)return;
-      if(ui.searchOwner!=="전체"&&it.owner!==ui.searchOwner)return;
+      if(ui.searchOwner!=="전체"&&!hasOwner(it,ui.searchOwner))return;
       if(ui.searchStatus!=="전체"&&STATUS[it.status].label!==ui.searchStatus)return;
       if(q&&!(it.text.toLowerCase().includes(q)||it.category.toLowerCase().includes(q)||
         (it.result||"").toLowerCase().includes(q)||(it.taskNo||"").toLowerCase().includes(q)))return;
@@ -2276,7 +2327,7 @@ function makeItem(weekKey,part,owner,cat,text,extra){
   return Object.assign({
     id:uid(),taskNo:nextTaskNo(weekKey),part,owner,category:cat,text,
     detail:"",dueDate:"",priority:"보통",status:"planned",result:"",carryReason:"",
-    carriedFrom:null,history:[],comments:[],createdAt:todayKey(),updatedAt:todayKey(),isEvent:""
+    carriedFrom:null,history:[],comments:[],createdAt:todayKey(),updatedAt:todayKey(),isEvent:"",chain:"",step:""
   },extra||{});
 }
 function addItemFromInputs(){
@@ -2390,6 +2441,19 @@ document.addEventListener("click",async (ev)=>{
     case "part-filter": ui.partFilter=val; render(); break;
     case "week-group": ui.weekGroup=val; try{localStorage.setItem("wwt-weekgroup",val);}catch(e){} render(); break;
     case "owner-click": ui.ownerFilter=(ui.ownerFilter===val?"전체":val); render(); break;
+    case "co-toggle": {
+      const f=findItem(id);
+      if(f){
+        let os=ownersOf(f.it);
+        const p=os[0]||state.me;
+        let rest=os.slice(1);
+        if(rest.includes(val))rest=rest.filter(n=>n!==val);
+        else if(val!==p)rest.push(val);
+        patchItem(id,{owner:[p].concat(rest).join(", ")});
+        render();
+      }
+      break;
+    }
     case "cycle": cycleStatus(id); break;
     case "expand": ui.expandedId=(ui.expandedId===id?null:id); render(); break;
     case "carry-next":
@@ -2403,7 +2467,7 @@ document.addEventListener("click",async (ev)=>{
       renderModal();
       break;
     }
-    case "mg-mine": mgrList().forEach(r=>{if(r.it.owner===state.me)ui.mgrSel.add(r.it.id);}); render(); break;
+    case "mg-mine": mgrList().forEach(r=>{if(hasOwner(r.it,state.me))ui.mgrSel.add(r.it.id);}); render(); break;
     case "mg-clear": ui.mgrSel.clear(); render(); break;
     case "mg-del": {
       const vis=new Set(mgrList().map(r=>r.it.id));
@@ -2596,9 +2660,18 @@ document.addEventListener("change",(ev)=>{
       renderModal();
       return;
     }
+    if(el.dataset.field==="ownerPrimary"){
+      const f=findItem(el.dataset.id);
+      if(f){
+        const rest=ownersOf(f.it).filter(n=>n!==el.value);
+        patchItem(el.dataset.id,{owner:[el.value].concat(rest.filter(n=>n!==el.value)).join(", ")});
+        render();
+      }
+      return;
+    }
     const patch={};patch[el.dataset.field]=el.value;
     patchItem(el.dataset.id,patch);
-    if(["status","priority","owner","carryReason","text","dueDate","part","category"].includes(el.dataset.field))render();
+    if(["status","priority","owner","carryReason","text","dueDate","part","category","chain","step"].includes(el.dataset.field))render();
     return;
   }
   const a=el.dataset?el.dataset.action:null;

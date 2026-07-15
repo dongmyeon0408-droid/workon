@@ -593,6 +593,32 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
   .picker-role{font-size:12px; color:var(--muted); white-space:nowrap}
   .now-badge{display:inline-block; background:var(--primary); color:var(--on-dark); font-size:10px; font-weight:600; padding:2px 9px; border-radius:9999px; vertical-align:middle; margin-left:4px}
   .picker-card>span:nth-child(2){flex:1}
+
+  /* ═══ 일괄 관리 ═══ */
+  .mg-filters{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px}
+  .mg-filters select{padding:0 11px; height:38px; border:1px solid var(--hairline); border-radius:8px; background:var(--canvas); font-size:13px; font-weight:500; color:var(--body-c)}
+  .mg-actionbar{display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:12px 14px; background:var(--surface-card); border-radius:10px}
+  .mg-allchk{display:flex; gap:7px; align-items:center; font-size:13.5px; font-weight:600; color:var(--ink); cursor:pointer}
+  .mg-allchk input,.mg-row input{width:17px; height:17px; accent-color:var(--primary); cursor:pointer}
+  .mg-count{font-size:13px; color:var(--muted); font-weight:500}
+  .mg-actionbar .spacer{flex:1}
+  .mg-del-btn{padding:0 16px; height:38px; font-size:13px; font-weight:600; background:var(--error); color:#fff; border:none; border-radius:8px}
+  .mg-del-btn:disabled{background:var(--surface-strong); color:var(--muted-soft); cursor:not-allowed}
+  .mg-del-btn:not(:disabled):active{background:#b91c1c}
+  .mg-edit{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end}
+  .mg-edit .fld select,.mg-edit .fld input{padding:0 10px; height:38px; border:1px solid var(--hairline); border-radius:8px; background:var(--canvas); min-width:118px}
+  .mg-edit .add-btn:disabled{background:var(--surface-strong); color:var(--muted-soft); cursor:not-allowed}
+  .mg-row{display:flex; gap:10px; align-items:center; padding:10px 8px; border-bottom:1px solid var(--hairline-soft); border-radius:8px}
+  .mg-row.sel{background:var(--surface-soft)}
+  .mg-wk{font-size:11.5px; color:var(--muted); white-space:nowrap; flex-shrink:0; font-weight:500}
+  .mg-text{flex:1; min-width:0; font-size:13.5px; font-weight:500; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .mg-meta{font-size:12px; color:var(--muted); white-space:nowrap; flex-shrink:0}
+  @media(hover:hover){.mg-row:hover{background:var(--surface-soft)}}
+  @media(max-width:768px){
+    .mg-meta{display:none}
+    .mg-text{white-space:normal}
+    .mg-edit .fld select,.mg-edit .fld input{min-width:100px}
+  }
 </style>
 </head>
 <body>
@@ -710,7 +736,8 @@ const ui={
   setupMsg:"", setupBusy:false,
   upWeek:"this", upPart:"인사", upOwner:"", upText:"",
   calY:now.getFullYear(), calM:now.getMonth(), calSel:todayKey(),
-  editMember:null, serverEmpty:false, dashExpand:null, dashFilter:"all", peopleExpand:null, peopleFilter:"total", reasonModal:null, notiOpen:false, pickUser:false
+  editMember:null, serverEmpty:false, dashExpand:null, dashFilter:"all", peopleExpand:null, peopleFilter:"total", reasonModal:null, notiOpen:false, pickUser:false,
+  mgrWeek:"all", mgrPart:"전체", mgrOwner:"전체", mgrStatus:"전체", mgrKind:"업무", mgrSel:new Set()
 };
 
 const memberNames=()=>state.members.map(m=>m.name);
@@ -1165,6 +1192,15 @@ function carryItemTo(item,fromKey,toKey,reason){
   markDirty(copy,toKey);
   return copy;
 }
+function moveItemWeek(id,targetKey){
+  const f=findItem(id);
+  if(!f||f.wk===targetKey)return;
+  state.weeks[f.wk].items=state.weeks[f.wk].items.filter(i=>i.id!==id);
+  ensureWeek(targetKey);
+  state.weeks[targetKey].items.push(f.it);
+  f.it.updatedAt=todayKey();
+  markDirty(f.it,targetKey);
+}
 function carryToNextWeek(id){
   const f=findItem(id);
   if(!f)return;
@@ -1326,6 +1362,7 @@ function render(){
   else if(ui.view==="dash")app.innerHTML=warn+renderDash();
   else if(ui.view==="people")app.innerHTML=warn+renderPeople();
   else if(ui.view==="msg")app.innerHTML=warn+renderMsg();
+  else if(ui.view==="mgr")app.innerHTML=warn+renderMgr();
   else if(ui.view==="guide")app.innerHTML=renderGuide();
   else app.innerHTML=warn+renderSearch();
   renderModal();
@@ -1338,7 +1375,7 @@ function renderTabs(){
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
   eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip;
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
-  const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["people","담당자"],["msg","메시지·칭찬"],["search","검색·이력"],["guide","사용법"]];
+  const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   document.getElementById("tabs").innerHTML=
     '<div class="pill-group">'+
     tabs.map(([k,l])=>'<button class="tab'+(ui.view===k?" active":"")+'" data-action="tab" data-val="'+k+'">'+l+"</button>").join("")+
@@ -1979,10 +2016,84 @@ function renderGuide(){
   +'<div class="guide-rule">✅ 다른 사람이 방금 입력한 내용은 상단 <span class="g-kbd">↻</span> 새로고침으로 받아옵니다 (탭 복귀 시 자동 갱신).</div>'
   +'<div class="guide-rule">✅ 팀장님은 앱 없이 <b>구글 시트를 직접 열어도</b> 전체 업무가 표로 정리되어 보입니다. 연말 정리는 [엑셀(CSV)] 다운로드.</div>'
   +'<div class="guide-rule">🔔 상단 벨 버튼에서 <b>알림</b>을 확인하세요 — 내 업무에 코멘트가 달리거나, 새 업무가 배정되거나, 코멘트에 내 이름이 언급되면 표시됩니다. [브라우저 알림 켜기]를 누르면 페이지가 열려 있는 동안 화면 알림도 받습니다.</div>'
+  +'<div class="guide-rule">🧹 <b>[일괄 관리]</b> 탭에서 여러 업무를 체크해 한 번에 삭제하거나 담당자·상태·주차를 일괄 변경할 수 있습니다. 계획을 처음부터 다시 짤 때 유용합니다.</div>'
   +'<div class="guide-rule">⚠️ 업무 삭제는 되돌릴 수 없습니다. 취소된 업무는 삭제보다 상태를 "취소"로 바꾸는 걸 권장합니다 (이력 보존).</div>'
   +'<div class="guide-rule">⚠️ 이 사이트 주소를 아는 사람은 누구나 데이터를 볼 수 있습니다. <b>링크는 팀 내부에서만</b> 공유하고, 평가·노무 등 민감 내용은 올리지 마세요.</div>'
   +'<div class="note" style="margin-top:14px">추천 주간 루틴 — <b>월요일 오전</b>: 미완료 이월 + 금주 계획 등록 · <b>주중</b>: 배지 클릭으로 상태 갱신, 결과 메모 · <b>금요일 오후</b>: 결과 정리 후 주간보고 생성 → 팀장님 톡 보고</div></div>';
 }
+/* ── 일괄 관리: 다중 선택 삭제·수정 ── */
+function mgrList(){
+  const out=[];
+  Object.keys(state.weeks).sort().reverse().forEach(wk=>{
+    state.weeks[wk].items.forEach(it=>{
+      if(ui.mgrKind==="업무"&&isEv(it))return;
+      if(ui.mgrKind==="일정"&&!isEv(it))return;
+      if(ui.mgrWeek!=="all"&&wk!==ui.mgrWeek)return;
+      if(ui.mgrPart!=="전체"&&(it.part||"인사")!==ui.mgrPart)return;
+      if(ui.mgrOwner!=="전체"&&it.owner!==ui.mgrOwner)return;
+      if(ui.mgrStatus!=="전체"&&STATUS[it.status].label!==ui.mgrStatus)return;
+      out.push({wk,it});
+    });
+  });
+  return out;
+}
+function renderMgr(){
+  const list=mgrList();
+  const visIds=list.map(r=>r.it.id);
+  const selCount=visIds.filter(id=>ui.mgrSel.has(id)).length;
+  const allSel=visIds.length>0&&selCount===visIds.length;
+  const weeks=Object.keys(state.weeks).sort().reverse();
+  const thisWk=fmtKey(mondayOf(new Date()));
+
+  let html='<div class="card" style="margin-top:0"><div class="card-title">🧹 일괄 관리</div>'+
+    '<div style="font-size:13px;color:var(--muted);margin:-6px 0 14px;line-height:1.6">여러 업무를 선택해 한 번에 삭제하거나 수정합니다. '+
+    '계획을 처음부터 다시 짤 때는 <b>주차 선택 → 전체 선택 → 선택 삭제</b> 후 [계획 업로드]로 재등록하세요.</div>'+
+    '<div class="mg-filters">'+
+    '<select data-action="mg-f-week"><option value="all"'+(ui.mgrWeek==="all"?" selected":"")+'>주차: 전체</option>'+
+    weeks.map(w=>'<option value="'+w+'"'+(ui.mgrWeek===w?" selected":"")+">"+weekLabel(w).short+(w===thisWk?" (이번 주)":"")+"</option>").join("")+"</select>"+
+    '<select data-action="mg-f-kind">'+["업무","일정","전체"].map(k=>'<option'+(ui.mgrKind===k?" selected":"")+">"+k+"</option>").join("")+"</select>"+
+    '<select data-action="mg-f-part"><option'+(ui.mgrPart==="전체"?" selected":"")+'>전체</option>'+PARTS.map(p=>'<option'+(ui.mgrPart===p?" selected":"")+">"+p+"</option>").join("")+"</select>"+
+    '<select data-action="mg-f-owner"><option'+(ui.mgrOwner==="전체"?" selected":"")+'>전체</option>'+memberNames().map(m=>'<option'+(ui.mgrOwner===m?" selected":"")+">"+esc(m)+"</option>").join("")+"</select>"+
+    '<select data-action="mg-f-status"><option'+(ui.mgrStatus==="전체"?" selected":"")+'>전체</option>'+STATUS_ORDER.map(s=>'<option'+(ui.mgrStatus===STATUS[s].label?" selected":"")+">"+STATUS[s].label+"</option>").join("")+"</select>"+
+    "</div>"+
+    '<div class="mg-actionbar">'+
+    '<label class="mg-allchk"><input type="checkbox" data-action-check="mg-all"'+(allSel?" checked":"")+'> 전체 선택</label>'+
+    '<button class="ghost" data-action="mg-mine">내 업무만 선택</button>'+
+    '<button class="ghost" data-action="mg-clear">선택 해제</button>'+
+    '<span class="mg-count">'+selCount+"건 선택됨 / 목록 "+list.length+"건</span>"+
+    '<div class="spacer"></div>'+
+    '<button class="mg-del-btn" data-action="mg-del"'+(selCount?"":" disabled")+'>선택 '+selCount+"건 삭제</button></div></div>";
+
+  html+='<div class="card"><div class="card-title" style="font-size:15px">선택 항목 일괄 수정</div>'+
+    '<div class="mg-edit">'+
+    '<label class="fld">담당자<select id="mg-owner"><option value="">변경 안 함</option>'+memberNames().map(m=>"<option>"+esc(m)+"</option>").join("")+"</select></label>"+
+    '<label class="fld">파트<select id="mg-part"><option value="">변경 안 함</option>'+PARTS.map(p=>"<option>"+p+"</option>").join("")+"</select></label>"+
+    '<label class="fld">상태<select id="mg-status"><option value="">변경 안 함</option>'+STATUS_ORDER.map(s=>'<option value="'+s+'">'+STATUS[s].label+"</option>").join("")+"</select></label>"+
+    '<label class="fld">우선순위<select id="mg-prio"><option value="">변경 안 함</option>'+PRIORITIES.map(p=>"<option>"+p+"</option>").join("")+"</select></label>"+
+    '<label class="fld">주차 이동<select id="mg-move"><option value="">이동 안 함</option><option value="this">이번 주로</option><option value="next">다음 주로</option></select></label>'+
+    '<label class="fld">분류<input id="mg-cat" placeholder="변경 안 함"></label>'+
+    '<button class="add-btn" data-action="mg-apply" style="align-self:flex-end"'+(selCount?"":" disabled")+'>선택 '+selCount+"건에 적용</button>"+
+    "</div>"+
+    '<div class="note">상태를 이월·보류·취소로 일괄 변경할 경우 사유는 각 업무의 기존 사유가 유지됩니다(없으면 비어 있음). 필요 시 개별 업무에서 사유를 입력하세요.</div></div>';
+
+  html+='<div class="card"><div class="card-title" style="font-size:15px">목록</div>';
+  if(!list.length)html+='<div style="font-size:13.5px;color:var(--muted);padding:8px 0">조건에 맞는 항목이 없습니다.</div>';
+  list.forEach(r=>{
+    const it=r.it;
+    const checked=ui.mgrSel.has(it.id);
+    html+='<div class="mg-row'+(checked?" sel":"")+'">'+
+      '<input type="checkbox" data-action-check="mg" data-id="'+it.id+'"'+(checked?" checked":"")+'>'+
+      '<span class="sr-badge '+statusClass(it.status)+'" style="font-size:11px;padding:2px 9px;flex-shrink:0">'+(isEv(it)?"일정":STATUS[it.status].label)+"</span>"+
+      '<span class="mg-wk">'+weekLabel(r.wk).short+"</span>"+
+      pchip(it.part||"인사","flex-shrink:0")+
+      '<span class="mg-text">'+esc(it.text)+"</span>"+
+      '<span class="mg-meta">'+esc(it.owner)+" · "+esc(it.category)+"</span>"+
+      '<button class="ghost" data-action="jump" data-id="'+it.id+'" data-val="'+r.wk+'">열기</button></div>';
+  });
+  html+="</div>";
+  return html;
+}
+
 function searchResultsHTML(){
   const q=ui.query.trim().toLowerCase();
   const results=[];
@@ -2213,6 +2324,41 @@ document.addEventListener("click",async (ev)=>{
       renderModal();
       break;
     }
+    case "mg-mine": mgrList().forEach(r=>{if(r.it.owner===state.me)ui.mgrSel.add(r.it.id);}); render(); break;
+    case "mg-clear": ui.mgrSel.clear(); render(); break;
+    case "mg-del": {
+      const vis=new Set(mgrList().map(r=>r.it.id));
+      const ids=[...ui.mgrSel].filter(x=>vis.has(x));
+      if(!ids.length)break;
+      if(!confirm(ids.length+"건을 삭제할까요? 삭제는 되돌릴 수 없습니다."))break;
+      const del=new Set(ids);
+      Object.keys(state.weeks).forEach(wk=>{state.weeks[wk].items=state.weeks[wk].items.filter(i=>!del.has(i.id));});
+      ids.forEach(x=>{dirty.items.delete(x);dirty.deletes.add(x);snapDelete(x);});
+      ui.mgrSel.clear();
+      cacheLocal();
+      if(mode==="shared")scheduleFlush();
+      render(); break;
+    }
+    case "mg-apply": {
+      const vis=new Set(mgrList().map(r=>r.it.id));
+      const ids=[...ui.mgrSel].filter(x=>vis.has(x));
+      if(!ids.length)break;
+      const g=(i)=>{const e=document.getElementById(i);return e?e.value:"";};
+      const owner=g("mg-owner"),part=g("mg-part"),status=g("mg-status"),prio=g("mg-prio"),wmove=g("mg-move");
+      const cat=(g("mg-cat")||"").trim();
+      if(!owner&&!part&&!status&&!prio&&!wmove&&!cat)break;
+      ids.forEach(x=>{
+        const patch={};
+        if(owner)patch.owner=owner;
+        if(part)patch.part=part;
+        if(status)patch.status=status;
+        if(prio)patch.priority=prio;
+        if(cat)patch.category=cat;
+        if(Object.keys(patch).length)patchItem(x,patch);
+        if(wmove)moveItemWeek(x,wmove==="this"?fmtKey(mondayOf(new Date())):shiftWeek(fmtKey(mondayOf(new Date())),1));
+      });
+      render(); break;
+    }
     case "switch-user": ui.pickUser=true; renderModal(); break;
     case "picker-close": ui.pickUser=false; renderModal(); break;
     case "pick-me": state.me=val; localStorage.setItem("wwt-me",val); ui.pickUser=false; cacheLocal(); renderModal(); render(); break;
@@ -2349,6 +2495,21 @@ document.addEventListener("click",(ev)=>{
 
 document.addEventListener("change",(ev)=>{
   const el=ev.target;
+  if(el.dataset&&el.dataset.actionCheck==="mg"){
+    const mid=el.dataset.id;
+    if(el.checked)ui.mgrSel.add(mid); else ui.mgrSel.delete(mid);
+    render(); return;
+  }
+  if(el.dataset&&el.dataset.actionCheck==="mg-all"){
+    const ids=mgrList().map(r=>r.it.id);
+    if(el.checked)ids.forEach(x=>ui.mgrSel.add(x)); else ids.forEach(x=>ui.mgrSel.delete(x));
+    render(); return;
+  }
+  if(el.dataset&&el.dataset.action==="mg-f-week"){ui.mgrWeek=el.value;render();return;}
+  if(el.dataset&&el.dataset.action==="mg-f-kind"){ui.mgrKind=el.value;render();return;}
+  if(el.dataset&&el.dataset.action==="mg-f-part"){ui.mgrPart=el.value;render();return;}
+  if(el.dataset&&el.dataset.action==="mg-f-owner"){ui.mgrOwner=el.value;render();return;}
+  if(el.dataset&&el.dataset.action==="mg-f-status"){ui.mgrStatus=el.value;render();return;}
   if(el.dataset&&el.dataset.field&&el.dataset.id){
     // 이월·보류·취소로 바꾸면 즉시 반영하지 않고 사유 팝업을 먼저 띄운다
     if(el.dataset.field==="status"&&["carried","hold","cancelled"].includes(el.value)){

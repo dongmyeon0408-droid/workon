@@ -621,6 +621,18 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
   }
 
 
+
+  /* ═══ 담당자 칩 · 담당자별 보기 ═══ */
+  .owner-chip{display:inline-flex; align-items:center; gap:5px; background:var(--canvas); border:1px solid var(--hairline); border-radius:9999px; padding:2px 10px 2px 3px; font-size:12px; font-weight:600; color:var(--ink); cursor:pointer; vertical-align:middle}
+  .owner-chip .oc-av{width:20px; height:20px; border-radius:9999px; display:inline-flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:600}
+  .owner-chip.on{background:var(--primary); color:var(--on-dark); border-color:var(--primary)}
+  @media(hover:hover){.owner-chip:hover{border-color:var(--ink)}}
+  .oc-av.big{width:30px; height:30px; border-radius:9999px; display:inline-flex; align-items:center; justify-content:center; font-size:13px; font-weight:600}
+  .owner-header{display:flex; align-items:center; gap:9px; margin-bottom:10px; padding-left:2px}
+  .owner-name{font-size:15px; font-weight:600; letter-spacing:-0.2px; color:var(--ink)}
+  .cat-tag{background:var(--surface-card); color:var(--body-c); font-size:11px; font-weight:500; padding:2px 9px; border-radius:9999px}
+  .item-meta{align-items:center}
+
 </style>
 </head>
 <body>
@@ -739,7 +751,8 @@ const ui={
   upWeek:"this", upPart:"인사", upOwner:"", upText:"",
   calY:now.getFullYear(), calM:now.getMonth(), calSel:todayKey(),
   editMember:null, serverEmpty:false, dashExpand:null, dashFilter:"all", peopleExpand:null, peopleFilter:"total", reasonModal:null, notiOpen:false, pickUser:false,
-  mgrWeek:"all", mgrPart:"전체", mgrOwner:"전체", mgrStatus:"전체", mgrKind:"업무", mgrSel:new Set()
+  mgrWeek:"all", mgrPart:"전체", mgrOwner:"전체", mgrStatus:"전체", mgrKind:"업무", mgrSel:new Set(),
+  weekGroup:localStorage.getItem("wwt-weekgroup")||"cat"
 };
 
 const memberNames=()=>state.members.map(m=>m.name);
@@ -1332,6 +1345,28 @@ function parsePlanText(text){
 }
 
 /* ══════════ 렌더 ══════════ */
+const STATUS_SORT={progress:0,planned:1,carried:2,hold:3,done:4,cancelled:5};
+const PRIO_SORT={"긴급":0,"높음":1,"보통":2,"낮음":3};
+function sortItems(arr){
+  return arr.slice().sort((a,b)=>
+    (STATUS_SORT[a.status]??9)-(STATUS_SORT[b.status]??9)||
+    (PRIO_SORT[a.priority]??9)-(PRIO_SORT[b.priority]??9));
+}
+function sortedCatEntries(part,items){
+  const m=groupByCategory(items);
+  const arr=[...m.entries()];
+  const canon=PART_CATS[part]||[];
+  const idx=c=>{const i=canon.indexOf(c);return i<0?900:i;};
+  arr.sort((x,y)=>idx(x[0])-idx(y[0])||String(x[0]).localeCompare(String(y[0]),"ko"));
+  return arr;
+}
+function ownerChip(name,small){
+  const mem=findMember(name);
+  const c=PART_COLOR[mem?mem.part:"인사"]||PART_COLOR["인사"];
+  const active=ui.ownerFilter===name;
+  return '<button class="owner-chip'+(active?" on":"")+(small?" sm":"")+'" data-action="owner-click" data-val="'+esc(name)+'" title="'+esc(name)+' 업무만 보기 (다시 클릭하면 해제)">'+
+    '<span class="oc-av" style="background:'+c.bg+';color:'+c.fg+'">'+esc(name.slice(0,1))+"</span>"+esc(name)+"</button>";
+}
 function statusClass(s){return "st-"+s;}
 function pchip(part,extra){
   const c=PART_COLOR[part]||PART_COLOR["인사"];
@@ -1386,7 +1421,7 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v18</span>';
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v19</span>';
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   document.getElementById("tabs").innerHTML=
@@ -1454,8 +1489,8 @@ function itemCardHTML(it,showOwner){
   if(it.priority==="긴급")chips+='<span class="chip prio-urgent">긴급</span>';
   else if(it.priority==="높음")chips+='<span class="chip prio-high">높음</span>';
   if((it.comments||[]).length)chips+='<span class="chip cmt">💬 '+it.comments.length+"</span>";
-  let meta='<span class="no">'+esc(it.taskNo)+"</span>";
-  if(showOwner)meta+='<span class="owner">'+esc(it.owner)+"</span>";
+  let meta=(showOwner?ownerChip(it.owner):"")+'<span class="no">'+esc(it.taskNo)+"</span>";
+  if(ui.view==="week"&&ui.weekGroup==="owner")meta+='<span class="cat-tag">'+esc(it.category)+"</span>";
   if(it.dueDate)meta+='<span class="due'+(overdue?" over":"")+'">~'+it.dueDate.slice(5).replace("-",".")+(overdue?" 초과":"")+"</span>";
   if(it.carryReason)meta+="<span>사유: "+esc(it.carryReason)+"</span>";
 
@@ -1536,6 +1571,12 @@ function renderWeek(){
   let html=weekNavHTML("");
   html+='<div style="display:flex;align-items:center;gap:12px;margin:14px 2px 4px;flex-wrap:wrap">'+
     partSegHTML(ui.partFilter,"part-filter")+
+    '<div class="part-seg">'+
+    '<button class="seg'+(ui.weekGroup==="cat"?" active":"")+'" data-action="week-group" data-val="cat">분류별</button>'+
+    '<button class="seg'+(ui.weekGroup==="owner"?" active":"")+'" data-action="week-group" data-val="owner">담당자별</button>'+
+    "</div>"+
+    (ui.ownerFilter!=="전체"?'<button class="owner-chip on" data-action="owner-click" data-val="'+esc(ui.ownerFilter)+'" title="필터 해제">'+
+      '<span class="oc-av" style="background:rgba(255,255,255,.25);color:#fff">'+esc(ui.ownerFilter.slice(0,1))+"</span>"+esc(ui.ownerFilter)+" 업무만 보는 중 ✕</button>":"")+
     '<div class="progress-wrap" style="flex:1;margin:0;min-width:200px">'+
     '<div class="pbar"><div class="pfill" style="width:'+pct+'%"></div></div>'+
     '<div class="plabel">완료 '+done+" / "+items.length+" ("+pct+"%)</div></div></div>";
@@ -1560,13 +1601,36 @@ function renderWeek(){
     html+='<div class="part-block"><div class="part-header" style="border-left-color:'+c.fg+'">'+
       '<span class="part-name" style="color:'+c.fg+'">'+part+' 파트</span>'+
       '<span class="cat-count">'+pDone+"/"+pItems.length+"</span></div>";
-    let ci=0;
-    for(const [cat,its] of groupByCategory(pItems)){
-      ci++;
-      html+='<div class="cat-section"><div class="cat-header"><span class="cat-num" style="background:'+c.fg+'">'+ci+"</span>"+
-        '<span class="cat-name">'+esc(cat)+'</span><span class="cat-count">'+its.filter(i=>i.status==="done").length+"/"+its.length+"</span></div>";
-      its.forEach(it=>{html+=itemCardHTML(it,showOwner);});
-      html+="</div>";
+    if(ui.weekGroup==="owner"){
+      /* ── 담당자별 보기: 파트장 → 파트원 순, 사람 단위 섹션 ── */
+      const order={"파트장":0,"파트원":1,"팀장":0};
+      const partOwners=state.members.filter(m=>m.part===part||(m.part==="팀"&&part===orderedParts()[0]))
+        .sort((a,b)=>(order[a.role]??9)-(order[b.role]??9));
+      const ownerNames=partOwners.map(m=>m.name);
+      pItems.forEach(i=>{if(!ownerNames.includes(i.owner))ownerNames.push(i.owner);});
+      for(const oname of ownerNames){
+        const oItems=sortItems(pItems.filter(i=>i.owner===oname));
+        if(!oItems.length)continue;
+        const om=findMember(oname);
+        const oDone=oItems.filter(i=>i.status==="done").length;
+        html+='<div class="cat-section"><div class="owner-header">'+
+          '<span class="oc-av big" style="background:'+c.bg+';color:'+c.fg+'">'+esc(oname.slice(0,1))+"</span>"+
+          '<span class="owner-name">'+esc(om?displayName(om):oname)+"</span>"+
+          (om&&om.role!=="파트원"?'<span class="role-chip">'+esc(om.role)+"</span>":"")+
+          '<span class="cat-count">'+oDone+"/"+oItems.length+"</span></div>";
+        oItems.forEach(it=>{html+=itemCardHTML(it,false);});
+        html+="</div>";
+      }
+    }else{
+      /* ── 분류별 보기: 표준 분류 순서 + 상태·우선순위 정렬 ── */
+      let ci=0;
+      for(const [cat,its] of sortedCatEntries(part,pItems)){
+        ci++;
+        html+='<div class="cat-section"><div class="cat-header"><span class="cat-num" style="background:'+c.fg+'">'+ci+"</span>"+
+          '<span class="cat-name">'+esc(cat)+'</span><span class="cat-count">'+its.filter(i=>i.status==="done").length+"/"+its.length+"</span></div>";
+        sortItems(its).forEach(it=>{html+=itemCardHTML(it,showOwner);});
+        html+="</div>";
+      }
     }
     html+="</div>";
   }
@@ -2324,6 +2388,8 @@ document.addEventListener("click",async (ev)=>{
     case "week-next": ui.weekKey=shiftWeek(ui.weekKey,1); ui.expandedId=null; render(); break;
     case "week-today": ui.weekKey=fmtKey(mondayOf(new Date())); ui.expandedId=null; render(); break;
     case "part-filter": ui.partFilter=val; render(); break;
+    case "week-group": ui.weekGroup=val; try{localStorage.setItem("wwt-weekgroup",val);}catch(e){} render(); break;
+    case "owner-click": ui.ownerFilter=(ui.ownerFilter===val?"전체":val); render(); break;
     case "cycle": cycleStatus(id); break;
     case "expand": ui.expandedId=(ui.expandedId===id?null:id); render(); break;
     case "carry-next":

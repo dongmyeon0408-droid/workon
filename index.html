@@ -619,6 +619,7 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
     .mg-text{white-space:normal}
     .mg-edit .fld select,.mg-edit .fld input{min-width:100px}
   }
+
 </style>
 </head>
 <body>
@@ -741,6 +742,16 @@ const ui={
 };
 
 const memberNames=()=>state.members.map(m=>m.name);
+function myPartOf(name){const m=state&&state.members.find(x=>x.name===name);return m&&PARTS.includes(m.part)?m.part:null;}
+function orderedParts(){
+  const p=state?myPartOf(state.me):null;
+  return p?[p].concat(PARTS.filter(x=>x!==p)):PARTS.slice();
+}
+function applyPartDefault(){
+  const m=state&&state.members.find(x=>x.name===state.me);
+  if(m&&m.role!=="팀장"&&PARTS.includes(m.part)){ui.partFilter=m.part;ui.upPart=m.part;}
+  else{ui.partFilter="전체";}
+}
 const findMember=(name)=>state.members.find(x=>x.name===name);
 const memberPart=(name)=>{const m=findMember(name);return m?(m.part==="팀"?"인사":m.part):"인사";};
 const displayName=(m)=>m.name+(m.title?" "+m.title:"");
@@ -1354,6 +1365,7 @@ function render(){
   const app=document.getElementById("app");
   if(ui.view==="setup"){app.innerHTML=renderSetup();return;}
   if(!state){app.innerHTML='<div class="empty">불러오는 중…</div>';return;}
+  if(!ui._partInit){applyPartDefault();ui._partInit=true;}
   if(!localStorage.getItem("wwt-me")&&state.members.length)ui.pickUser=true;
   const warn=topWarnings();
   if(ui.view==="week")app.innerHTML=warn+renderWeek();
@@ -1426,7 +1438,7 @@ function weekNavHTML(suffix){
 }
 
 function partSegHTML(current,action){
-  return '<div class="part-seg">'+["전체"].concat(PARTS).map(p=>
+  return '<div class="part-seg">'+orderedParts().concat(["전체"]).map(p=>
     '<button class="seg'+(current===p?" active":"")+'" data-action="'+action+'" data-val="'+p+'">'+p+"</button>"
   ).join("")+"</div>";
 }
@@ -1538,7 +1550,7 @@ function renderWeek(){
   }
 
   html+='<div style="margin-top:12px">';
-  const partsToShow=ui.partFilter==="전체"?PARTS:[ui.partFilter];
+  const partsToShow=ui.partFilter==="전체"?orderedParts():[ui.partFilter];
   for(const part of partsToShow){
     const pItems=items.filter(i=>(i.part||"인사")===part);
     if(!pItems.length)continue;
@@ -1800,7 +1812,7 @@ function renderDash(){
 
   /* 2) 파트별 상태 분포 (스택 바) */
   html+='<div class="card" style="margin-top:16px"><div class="card-title">파트별 진행 현황 (이번 주차)</div>';
-  for(const part of PARTS){
+  for(const part of orderedParts()){
     const pi=all.filter(i=>(i.part||"인사")===part);
     const c=PART_COLOR[part];
     const total=pi.length||1;
@@ -1939,7 +1951,7 @@ function renderPeople(){
     html+='<div class="org-line"></div>';
   }
   html+='<div class="org-parts">';
-  for(const part of PARTS){
+  for(const part of orderedParts()){
     const mem=state.members.filter(m=>m.part===part).sort((a,b)=>(a.role==="파트장"?-1:1)-(b.role==="파트장"?-1:1));
     const c=PART_COLOR[part];
     html+='<div class="org-part-col"><div class="part-header" style="border-left-color:'+c.fg+';margin-bottom:12px">'+
@@ -2361,7 +2373,7 @@ document.addEventListener("click",async (ev)=>{
     }
     case "switch-user": ui.pickUser=true; renderModal(); break;
     case "picker-close": ui.pickUser=false; renderModal(); break;
-    case "pick-me": state.me=val; localStorage.setItem("wwt-me",val); ui.pickUser=false; cacheLocal(); renderModal(); render(); break;
+    case "pick-me": state.me=val; localStorage.setItem("wwt-me",val); ui.pickUser=false; applyPartDefault(); cacheLocal(); renderModal(); render(); break;
     case "kudos-send": sendMessage("kudos"); break;
     case "dm-send": sendMessage("dm"); break;
     case "msg-del": if(confirm("이 메시지를 삭제할까요?"))deleteMessage(id); break;

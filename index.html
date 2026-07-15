@@ -576,6 +576,15 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
   .picker-role{font-size:12px; color:var(--muted); display:block; margin-top:2px}
   .picker-card>span:nth-child(2){flex:1}
 
+
+  /* ═══ 현재 사용자 칩 ═══ */
+  .me-chip{display:inline-flex; align-items:center; gap:8px; background:var(--primary); color:var(--on-dark); border:none; border-radius:9999px; padding:8px 15px 8px 9px; font-size:13px; font-weight:600; margin-bottom:4px; letter-spacing:0}
+  .me-chip:active{background:var(--primary-active)}
+  @media(hover:hover){.me-chip:hover{background:var(--primary-active)}}
+  .me-avatar{width:22px; height:22px; border-radius:9999px; background:rgba(255,255,255,.25); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600}
+  .me-sub{font-size:11px; color:var(--on-dark-soft); font-weight:500}
+  .picker-card.now{border-color:var(--ink); background:var(--surface-soft)}
+  @media(max-width:768px){.me-chip{padding:7px 12px 7px 8px; font-size:12.5px}}
 </style>
 </head>
 <body>
@@ -917,7 +926,7 @@ function buildSnap(){
 function snapUpdate(it){if(snap){snap[it.id]=snapEntry(it);saveSnap();}}
 function snapDelete(id){if(snap&&snap[id]){delete snap[id];saveSnap();}}
 function pushNoti(text,itemId,view){
-  notis.unshift({id:uid(),text,itemId:itemId||null,view:view||"",ts:Date.now(),read:false});
+  notis.unshift({id:uid(),who:state?state.me:"",text,itemId:itemId||null,view:view||"",ts:Date.now(),read:false});
   notis=notis.slice(0,50);
   saveNotis();
   try{
@@ -957,21 +966,23 @@ function runNotiDiff(){
   snap=cur;saveSnap();
   runMsgNotiDiff();
 }
-function unreadCount(){return notis.filter(n=>!n.read).length;}
+function myNotis(){return notis.filter(n=>n.who===(state?state.me:""));}
+function unreadCount(){return myNotis().filter(n=>!n.read).length;}
 function fmtTs(ts){const d=new Date(ts);return (d.getMonth()+1)+"."+d.getDate()+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");}
 function notiModalHTML(){
   const permBtn=(typeof Notification!=="undefined"&&Notification.permission!=="granted")
     ?'<button class="csv-btn" data-action="noti-perm" style="height:34px;font-size:12.5px;padding:0 12px">브라우저 알림 켜기</button>':"";
+  const list=myNotis();
   let body;
-  if(!notis.length){
+  if(!list.length){
     body='<div style="padding:28px 8px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.7">알림이 없습니다.<br><span style="font-size:12px;color:var(--muted-soft)">내 업무에 코멘트가 달리거나, 새 업무가 배정되거나,<br>코멘트에서 내 이름이 언급되면 여기에 표시됩니다.</span></div>';
   }else{
-    body=notis.map(n=>'<div class="noti-row'+(n.read?"":" unread")+'"'+((n.itemId||n.view)?' data-action="noti-jump" data-id="'+(n.itemId||"")+'" data-val="'+(n.view||"")+'"':"")+'>'+
+    body=list.map(n=>'<div class="noti-row'+(n.read?"":" unread")+'"'+((n.itemId||n.view)?' data-action="noti-jump" data-id="'+(n.itemId||"")+'" data-val="'+(n.view||"")+'"':"")+'>'+
       '<div style="flex:1;min-width:0"><div class="noti-text">'+esc(n.text)+'</div><div class="noti-time">'+fmtTs(n.ts)+"</div></div>"+
       ((n.itemId||n.view)?'<span class="dd-open">열기 ›</span>':"")+"</div>").join("");
   }
   return '<div class="overlay"><div class="modal" style="width:min(540px,100%)">'
-    +'<div class="modal-head"><strong>알림</strong><div style="display:flex;gap:6px;align-items:center">'+permBtn
+    +'<div class="modal-head"><strong>알림 — '+esc(state.me)+' 님</strong><div style="display:flex;gap:6px;align-items:center">'+permBtn
     +'<button class="ghost" data-action="noti-clear">모두 지우기</button>'
     +'<button class="ghost" data-action="noti-close">닫기</button></div></div>'
     +'<div style="padding:10px 14px;overflow-y:auto;max-height:60vh">'+body+"</div>"
@@ -1063,7 +1074,7 @@ function renderMsg(){
   html+="</div>";
   /* ── 쪽지 ── */
   const dms=msgs.filter(m=>m.kind==="dm"&&(m.from===me||m.to===me)).slice(0,30);
-  html+='<div class="card"><div class="card-title">✉ 쪽지</div>'+
+  html+='<div class="card"><div class="card-title">✉ 쪽지 <span class="chip" style="background:var(--surface-card);color:var(--body-c);font-weight:500">'+esc(me)+' 님의 쪽지함</span></div>'+
     '<div class="kd-form" style="margin-bottom:14px">'+
     '<select id="dm-to">'+others.map(n=>"<option>"+esc(n)+"</option>").join("")+"</select>"+
     '<input id="dm-text" data-action-enter="dm-send" placeholder="메시지 입력 후 Enter — 받는 분에게 알림이 갑니다">'+
@@ -1084,15 +1095,16 @@ function pickerHTML(){
   const order={"팀":0,"인사":1,"전산":2};
   const mems=[...state.members].sort((a,b)=>(order[a.part]??9)-(order[b.part]??9));
   return '<div class="overlay" style="background:rgba(17,17,17,.55)"><div class="modal" style="width:min(520px,100%)">'+
-    '<div class="modal-head"><strong>환영합니다! 본인을 선택해 주세요</strong></div>'+
+    '<div class="modal-head"><strong>'+(localStorage.getItem("wwt-me")?"사용자 전환 — 본인을 선택해 주세요":"환영합니다! 본인을 선택해 주세요")+'</strong></div>'+
     '<div style="padding:16px 20px 8px;font-size:13px;color:var(--muted)">선택한 이름으로 업무 담당·코멘트·알림이 연결됩니다. 나중에 [담당자] 탭에서 변경할 수 있습니다.</div>'+
     '<div class="picker-grid">'+
     mems.map(mem=>{
       const c=PART_COLOR[mem.part]||PART_COLOR["인사"];
-      return '<button class="picker-card" data-action="pick-me" data-val="'+esc(mem.name)+'">'+
+      const isMe=localStorage.getItem("wwt-me")===mem.name;
+      return '<button class="picker-card'+(isMe?" now":"")+'" data-action="pick-me" data-val="'+esc(mem.name)+'">'+
         '<span class="person-avatar" style="background:'+c.bg+';color:'+c.fg+';width:44px;height:44px;font-size:17px">'+esc(mem.name.slice(0,1))+"</span>"+
         '<span class="picker-name">'+esc(displayName(mem))+'</span>'+
-        '<span class="picker-role">'+esc(mem.role)+" · "+esc(mem.part)+"</span></button>";
+        '<span class="picker-role">'+esc(mem.role)+" · "+esc(mem.part)+(isMe?' · <b style="color:var(--ink)">현재 사용 중</b>':"")+"</span></button>";
     }).join("")+
     "</div></div></div>";
 }
@@ -1320,12 +1332,16 @@ function renderTabs(){
     tabs.map(([k,l])=>'<button class="tab'+(ui.view===k?" active":"")+'" data-action="tab" data-val="'+k+'">'+l+"</button>").join("")+
     "</div>"+
     '<div class="spacer"></div>'+
+    (state?'<button class="me-chip" data-action="switch-user" title="다른 사용자로 전환">'+
+      '<span class="me-avatar">'+esc(state.me.slice(0,1))+"</span>"+
+      esc((findMember(state.me)?displayName(findMember(state.me)):state.me))+
+      '<span class="me-sub">전환 ▾</span></button>':"")+
     (mode==="shared"?'<button class="nav-btn" data-action="noti-open" style="margin-bottom:4px;padding:7px 12px;position:relative" title="알림">🔔'+(unreadCount()?'<span class="noti-dot">'+unreadCount()+"</span>":"")+"</button>":"")+
     (mode==="shared"?'<button class="nav-btn" data-action="refresh" style="margin-bottom:4px;padding:7px 12px">↻</button>':"")+
     '<button class="nav-btn" data-action="setup-open" style="margin-bottom:4px;padding:7px 12px" title="구글 시트 연결 설정">⚙</button>'+
-    (state?'<select class="owner-sel" data-action="owner-filter">'+
-      '<option value="전체"'+(ui.ownerFilter==="전체"?" selected":"")+'>담당자: 전체</option>'+
-      memberNames().map(m=>'<option value="'+esc(m)+'"'+(ui.ownerFilter===m?" selected":"")+">"+esc(m)+"</option>").join("")+
+    (state?'<select class="owner-sel" data-action="owner-filter" title="화면에 표시할 담당자 필터 (사용자 전환 아님)">'+
+      '<option value="전체"'+(ui.ownerFilter==="전체"?" selected":"")+'>필터: 전체</option>'+
+      memberNames().map(m=>'<option value="'+esc(m)+'"'+(ui.ownerFilter===m?" selected":"")+">필터: "+esc(m)+"</option>").join("")+
     "</select>":"");
 }
 
@@ -1904,7 +1920,7 @@ function renderGuide(){
   return ''
   +'<div class="card" style="margin-top:0"><div class="card-title">📌 처음 오셨나요? 딱 두 가지만 하면 됩니다</div>'
   +'<div class="guide-flow">'
-  +'<div class="guide-flow-step"><span class="cat-num">1</span><div><b>내 이름 설정</b><div class="g-sub">[담당자] 탭 맨 아래 "내 이름"에서 본인을 선택하세요. 이후 업무 추가 시 담당자가 자동으로 선택됩니다.</div></div></div>'
+  +'<div class="guide-flow-step"><span class="cat-num">1</span><div><b>내 계정 확인</b><div class="g-sub">첫 접속 시 본인을 선택했다면 준비 끝. 우측 상단 <b>검은 이름 버튼(👤)</b>이 현재 사용 중인 계정이며, 누르면 언제든 전환할 수 있습니다. 그 옆 "필터"는 화면에 표시할 담당자를 고르는 것으로 계정 전환이 아닙니다.</div></div></div>'
   +'<div class="guide-flow-step"><span class="cat-num">2</span><div><b>이번 주 계획 등록</b><div class="g-sub">아래 ①번 방법 중 편한 것으로 이번 주 업무를 올리면 끝. 지금 로그인 상태는 <b>'+me+'</b> 입니다.</div></div></div>'
   +'</div></div>'
 
@@ -2185,13 +2201,14 @@ document.addEventListener("click",async (ev)=>{
       renderModal();
       break;
     }
+    case "switch-user": ui.pickUser=true; renderModal(); break;
     case "pick-me": state.me=val; localStorage.setItem("wwt-me",val); ui.pickUser=false; cacheLocal(); renderModal(); render(); break;
     case "kudos-send": sendMessage("kudos"); break;
     case "dm-send": sendMessage("dm"); break;
     case "msg-del": if(confirm("이 메시지를 삭제할까요?"))deleteMessage(id); break;
-    case "noti-open": ui.notiOpen=true; notis.forEach(n=>n.read=true); saveNotis(); renderTabs(); renderModal(); break;
+    case "noti-open": ui.notiOpen=true; myNotis().forEach(n=>n.read=true); saveNotis(); renderTabs(); renderModal(); break;
     case "noti-close": ui.notiOpen=false; renderModal(); break;
-    case "noti-clear": notis=[]; saveNotis(); renderModal(); renderTabs(); break;
+    case "noti-clear": notis=notis.filter(n=>n.who!==state.me); saveNotis(); renderModal(); renderTabs(); break;
     case "noti-perm": try{Notification.requestPermission().then(()=>renderModal());}catch(e){} break;
     case "noti-jump": {
       const f=id?findItem(id):null;

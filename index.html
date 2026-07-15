@@ -649,6 +649,11 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
   .chain-text{flex:1; min-width:0; font-size:13px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
   .chain-wk{font-size:11px; color:var(--muted-soft); white-space:nowrap}
   @media(hover:hover){.chain-step:hover{background:var(--surface-soft); border-radius:8px}}
+
+  /* ═══ 내 업무만 토글 ═══ */
+  .my-toggle{padding:8px 16px; font-size:13px; font-weight:600; background:var(--canvas); border:1px solid var(--hairline); border-radius:9999px; color:var(--body-c)}
+  .my-toggle.on{background:var(--primary); color:var(--on-dark); border-color:var(--primary)}
+  @media(hover:hover){.my-toggle:hover:not(.on){border-color:var(--ink)}}
 </style>
 </head>
 <body>
@@ -784,6 +789,8 @@ function applyPartDefault(){
   const m=state&&state.members.find(x=>x.name===state.me);
   if(m&&m.role!=="팀장"&&PARTS.includes(m.part)){ui.partFilter=m.part;ui.upPart=m.part;}
   else{ui.partFilter="전체";}
+  let my=null; try{my=localStorage.getItem("wwt-myonly");}catch(e){}
+  ui.ownerFilter=my?state.me:"전체";
 }
 const findMember=(name)=>state.members.find(x=>x.name===name);
 const memberPart=(name)=>{const m=findMember(name);return m?(m.part==="팀"?"인사":m.part):"인사";};
@@ -1443,7 +1450,7 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v20</span>';
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v21</span>';
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   document.getElementById("tabs").innerHTML=
@@ -1624,7 +1631,8 @@ function renderWeek(){
     '<button class="seg'+(ui.weekGroup==="cat"?" active":"")+'" data-action="week-group" data-val="cat">분류별</button>'+
     '<button class="seg'+(ui.weekGroup==="owner"?" active":"")+'" data-action="week-group" data-val="owner">담당자별</button>'+
     "</div>"+
-    (ui.ownerFilter!=="전체"?'<button class="owner-chip on" data-action="owner-click" data-val="'+esc(ui.ownerFilter)+'" title="필터 해제">'+
+    '<button class="my-toggle'+(ui.ownerFilter===state.me?" on":"")+'" data-action="my-only" title="내가 주담당이거나 공동 담당인 업무만 표시">👤 내 업무만'+(ui.ownerFilter===state.me?" ✓":"")+"</button>"+
+    (ui.ownerFilter!=="전체"&&ui.ownerFilter!==state.me?'<button class="owner-chip on" data-action="owner-click" data-val="'+esc(ui.ownerFilter)+'" title="필터 해제">'+
       '<span class="oc-av" style="background:rgba(255,255,255,.25);color:#fff">'+esc(ui.ownerFilter.slice(0,1))+"</span>"+esc(ui.ownerFilter)+" 업무만 보는 중 ✕</button>":"")+
     '<div class="progress-wrap" style="flex:1;margin:0;min-width:200px">'+
     '<div class="pbar"><div class="pfill" style="width:'+pct+'%"></div></div>'+
@@ -2142,6 +2150,7 @@ function renderGuide(){
   +'<div class="guide-rule">✅ 다른 사람이 방금 입력한 내용은 상단 <span class="g-kbd">↻</span> 새로고침으로 받아옵니다 (탭 복귀 시 자동 갱신).</div>'
   +'<div class="guide-rule">✅ 팀장님은 앱 없이 <b>구글 시트를 직접 열어도</b> 전체 업무가 표로 정리되어 보입니다. 연말 정리는 [엑셀(CSV)] 다운로드.</div>'
   +'<div class="guide-rule">🔔 상단 벨 버튼에서 <b>알림</b>을 확인하세요 — 내 업무에 코멘트가 달리거나, 새 업무가 배정되거나, 코멘트에 내 이름이 언급되면 표시됩니다. [브라우저 알림 켜기]를 누르면 페이지가 열려 있는 동안 화면 알림도 받습니다.</div>'
+  +'<div class="guide-rule">👤 <b>내 업무만</b> 버튼을 켜면 내가 주담당이거나 공동 담당인 업무만 표시되고, 이 설정은 다음 접속에도 유지됩니다.</div>'
   +'<div class="guide-rule">👥 <b>공동 담당</b>: 업무 [상세 ▼]에서 함께 진행할 팀원을 클릭하면 담당자가 여러 명이 됩니다. 모두의 화면·현황·알림에 잡히며, 첫 번째가 주담당입니다.</div>'
   +'<div class="guide-rule">🔗 <b>프로젝트 연결</b>: 순서대로 진행되는 업무들은 [상세 ▼]에서 같은 프로젝트 이름 + 단계 번호를 넣으세요. 카드에 🔗 배지가 붙고, 상세에서 전체 단계 진행 상황과 다음 단계를 한눈에 볼 수 있습니다.</div>'
   +'<div class="guide-rule">🧹 <b>[일괄 관리]</b> 탭에서 여러 업무를 체크해 한 번에 삭제하거나 담당자·상태·주차를 일괄 변경할 수 있습니다. 계획을 처음부터 다시 짤 때 유용합니다.</div>'
@@ -2440,7 +2449,14 @@ document.addEventListener("click",async (ev)=>{
     case "week-today": ui.weekKey=fmtKey(mondayOf(new Date())); ui.expandedId=null; render(); break;
     case "part-filter": ui.partFilter=val; render(); break;
     case "week-group": ui.weekGroup=val; try{localStorage.setItem("wwt-weekgroup",val);}catch(e){} render(); break;
-    case "owner-click": ui.ownerFilter=(ui.ownerFilter===val?"전체":val); render(); break;
+    case "my-only":
+      if(ui.ownerFilter===state.me){ui.ownerFilter="전체";try{localStorage.removeItem("wwt-myonly");}catch(e){}}
+      else{ui.ownerFilter=state.me;try{localStorage.setItem("wwt-myonly","1");}catch(e){}}
+      render(); break;
+    case "owner-click":
+      ui.ownerFilter=(ui.ownerFilter===val?"전체":val);
+      try{if(ui.ownerFilter===state.me)localStorage.setItem("wwt-myonly","1");else localStorage.removeItem("wwt-myonly");}catch(e){}
+      render(); break;
     case "co-toggle": {
       const f=findItem(id);
       if(f){
@@ -2675,7 +2691,7 @@ document.addEventListener("change",(ev)=>{
     return;
   }
   const a=el.dataset?el.dataset.action:null;
-  if(a==="owner-filter"){ui.ownerFilter=el.value;render();return;}
+  if(a==="owner-filter"){ui.ownerFilter=el.value;try{if(el.value===state.me)localStorage.setItem("wwt-myonly","1");else localStorage.removeItem("wwt-myonly");}catch(e){}render();return;}
   if(a==="search-owner"){ui.searchOwner=el.value;render();return;}
   if(a==="search-status"){ui.searchStatus=el.value;render();return;}
   if(a==="search-part"){ui.searchPart=el.value;render();return;}

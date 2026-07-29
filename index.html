@@ -655,6 +655,21 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
   .my-toggle.on{background:var(--primary); color:var(--on-dark); border-color:var(--primary)}
   @media(hover:hover){.my-toggle:hover:not(.on){border-color:var(--ink)}}
 
+
+  /* ═══ 업무 지정 (팀장 → 팀원) ═══ */
+  .chip.assigned{background:#ffedd5; color:#c2410c; font-weight:600}
+  .item.assigned-new{border-color:#fb923c; box-shadow:0 0 0 1px #fb923c, var(--shadow-sm); background:#fff7ed}
+  .item.assigned-new .status-badge.st-planned{background:#fed7aa; color:#c2410c; border-color:#fdba74}
+  .asg-form{display:flex; flex-direction:column; gap:12px}
+  .asg-row{display:flex; gap:12px; flex-wrap:wrap}
+  .asg-row .fld{flex:1; min-width:130px}
+  .asg-form input,.asg-form select,.asg-form textarea{padding:0 12px; height:40px; border:1px solid var(--hairline); border-radius:8px; background:var(--canvas); font-size:14px; width:100%}
+  .asg-form textarea{height:auto; padding:10px 12px; line-height:1.5; resize:vertical}
+  .asg-load{display:flex; flex-wrap:wrap; gap:10px}
+  .asg-load-item{display:flex; align-items:center; gap:8px; background:var(--surface-card); border-radius:9999px; padding:6px 14px 6px 6px}
+  .asg-load-name{font-size:13px; font-weight:600; color:var(--ink)}
+  .asg-load-num{font-size:12px; color:var(--muted)}
+
 </style>
 </head>
 <body>
@@ -672,6 +687,7 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
 </div>
 <div id="modal-root"></div>
 <script>
+
 "use strict";
 /* ══════════ 주간 업무 트래커 v3 ══════════
    인재문화팀: 팀장 임무택 상무 / 인사파트(정효남·김동면·김신혜) / 전산파트(안성민·전형만)
@@ -774,6 +790,7 @@ const ui={
   calY:now.getFullYear(), calM:now.getMonth(), calSel:todayKey(),
   editMember:null, serverEmpty:false, dashExpand:null, dashFilter:"all", peopleExpand:null, peopleFilter:"total", reasonModal:null, notiOpen:false, pickUser:false,
   mgrWeek:"all", mgrPart:"전체", mgrOwner:"전체", mgrStatus:"전체", mgrKind:"업무", mgrSel:new Set(),
+  assign:{},
   weekGroup:localStorage.getItem("wwt-weekgroup")||"cat"
 };
 
@@ -781,6 +798,7 @@ const memberNames=()=>state.members.map(m=>m.name);
 function ownersOf(it){return String(it.owner||"").split(",").map(s=>s.trim()).filter(Boolean);}
 function primaryOwner(it){return ownersOf(it)[0]||"";}
 function hasOwner(it,name){return ownersOf(it).includes(name);}
+function isLeader(name){const m=state&&state.members.find(x=>x.name===(name||state.me));return m&&m.role==="팀장";}
 function myPartOf(name){const m=state&&state.members.find(x=>x.name===name);return m&&PARTS.includes(m.part)?m.part:null;}
 function orderedParts(){
   const p=state?myPartOf(state.me):null;
@@ -834,7 +852,7 @@ function normalizeState(s){
     if(isEv(it)){ if(!it.part)it.part="인사"; }
     else if(!it.part||!PARTS.includes(it.part))it.part=guessPart(it.category);
     it.dueDate=normDateOnly(it.dueDate);
-    it.chain=it.chain||"";it.step=it.step||"";
+    it.chain=it.chain||"";it.step=it.step||"";it.assignedBy=it.assignedBy||"";
     it.owner=ownersOf(it).join(", ")||it.owner;
     if(it.isEvent==null)it.isEvent="";
     it.history=it.history||[];it.comments=it.comments||[];
@@ -1033,6 +1051,7 @@ function runNotiDiff(){
     const prev=snap[it.id];
     if(!prev){
       if(hasOwner(it,me)){
+        if(it.assignedBy&&it.assignedBy!==me){pushNoti("📌 "+it.assignedBy+" 님이 업무를 지정했습니다: "+it.text,it.id);return;}
         if(isEv(it))pushNoti("내 일정이 등록되었습니다: "+it.text,it.id);
         else pushNoti("새 업무가 배정되었습니다: "+it.text,it.id);
       }
@@ -1449,6 +1468,7 @@ function render(){
   else if(ui.view==="dash")app.innerHTML=warn+renderDash();
   else if(ui.view==="people")app.innerHTML=warn+renderPeople();
   else if(ui.view==="msg")app.innerHTML=warn+renderMsg();
+  else if(ui.view==="assign")app.innerHTML=warn+(isLeader()?renderAssign():'<div class="empty">이 탭은 팀장만 사용할 수 있습니다.</div>');
   else if(ui.view==="mgr")app.innerHTML=warn+renderMgr();
   else if(ui.view==="guide")app.innerHTML=renderGuide();
   else app.innerHTML=warn+renderSearch();
@@ -1460,9 +1480,10 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v22</span>';
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v23</span>';
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
+  if(isLeader())tabs.splice(1,0,["assign","업무 지정"]);
   document.getElementById("tabs").innerHTML=
     '<div class="pill-group">'+
     tabs.map(([k,l])=>'<button class="tab'+(ui.view===k?" active":"")+'" data-action="tab" data-val="'+k+'">'+l+"</button>").join("")+
@@ -1527,6 +1548,7 @@ function itemCardHTML(it,showOwner,groupOwner){
   if(carry>0)chips+='<span class="chip carry'+(carry>=2?" hot":"")+'">이월 '+(carry+1)+'주째</span>';
   if(it.priority==="긴급")chips+='<span class="chip prio-urgent">긴급</span>';
   else if(it.priority==="높음")chips+='<span class="chip prio-high">높음</span>';
+  if(it.assignedBy)chips+='<span class="chip assigned">📌 '+esc(it.assignedBy)+" 지시</span>";
   if(groupOwner&&ownersOf(it).length>1)chips+='<span class="chip" style="background:var(--surface-card);color:var(--body-c)">'+(primaryOwner(it)===groupOwner?"주담당":"공동")+"</span>";
   if(it.chain)chips+='<span class="chip chain">🔗 '+esc(it.chain)+(it.step?" · "+esc(it.step)+"단계":"")+"</span>";
   if((it.comments||[]).length)chips+='<span class="chip cmt">💬 '+it.comments.length+"</span>";
@@ -1535,7 +1557,8 @@ function itemCardHTML(it,showOwner,groupOwner){
   if(it.dueDate)meta+='<span class="due'+(overdue?" over":"")+'">~'+it.dueDate.slice(5).replace("-",".")+(overdue?" 초과":"")+"</span>";
   if(it.carryReason)meta+="<span>사유: "+esc(it.carryReason)+"</span>";
 
-  let html='<div class="item'+(dim?" dim":"")+(expanded?" expanded":"")+(overdue&&!expanded?" overdue":"")+'">'+
+  const assignedToMe=it.assignedBy&&hasOwner(it,state.me)&&it.status==="planned";
+  let html='<div class="item'+(dim?" dim":"")+(expanded?" expanded":"")+(overdue&&!expanded?" overdue":"")+(assignedToMe?" assigned-new":"")+'">'+
     '<div class="item-top">'+
     '<button class="status-badge '+statusClass(it.status)+'" data-action="cycle" data-id="'+it.id+'" title="클릭: 예정→진행중→완료">'+STATUS[it.status].label+"</button>"+
     '<div class="item-main" data-action="expand" data-id="'+it.id+'">'+
@@ -2160,6 +2183,7 @@ function renderGuide(){
   +'<div class="guide-rule">✅ 다른 사람이 방금 입력한 내용은 상단 <span class="g-kbd">↻</span> 새로고침으로 받아옵니다 (탭 복귀 시 자동 갱신).</div>'
   +'<div class="guide-rule">✅ 팀장님은 앱 없이 <b>구글 시트를 직접 열어도</b> 전체 업무가 표로 정리되어 보입니다. 연말 정리는 [엑셀(CSV)] 다운로드.</div>'
   +'<div class="guide-rule">🔔 상단 벨 버튼에서 <b>알림</b>을 확인하세요 — 내 업무에 코멘트가 달리거나, 새 업무가 배정되거나, 코멘트에 내 이름이 언급되면 표시됩니다. [브라우저 알림 켜기]를 누르면 페이지가 열려 있는 동안 화면 알림도 받습니다.</div>'
+  +'<div class="guide-rule">📌 <b>업무 지정</b>(팀장 전용): 팀장으로 로그인하면 [업무 지정] 탭이 생깁니다. 팀원에게 업무를 지정하면 그 담당자 화면에 주황색으로 강조되고 알림이 갑니다.</div>'
   +'<div class="guide-rule">👤 <b>내 업무만</b> 버튼을 켜면 내가 주담당이거나 공동 담당인 업무만 표시되고, 이 설정은 다음 접속에도 유지됩니다.</div>'
   +'<div class="guide-rule">👥 <b>공동 담당</b>: 업무 [상세 ▼]에서 함께 진행할 팀원을 클릭하면 담당자가 여러 명이 됩니다. 모두의 화면·현황·알림에 잡히며, 첫 번째가 주담당입니다.</div>'
   +'<div class="guide-rule">🔗 <b>프로젝트 연결</b>: 순서대로 진행되는 업무들은 [상세 ▼]에서 같은 프로젝트 이름 + 단계 번호를 넣으세요. 카드에 🔗 배지가 붙고, 상세에서 전체 단계 진행 상황과 다음 단계를 한눈에 볼 수 있습니다.</div>'
@@ -2168,6 +2192,83 @@ function renderGuide(){
   +'<div class="guide-rule">⚠️ 이 사이트 주소를 아는 사람은 누구나 데이터를 볼 수 있습니다. <b>링크는 팀 내부에서만</b> 공유하고, 평가·노무 등 민감 내용은 올리지 마세요.</div>'
   +'<div class="note" style="margin-top:14px">추천 주간 루틴 — <b>월요일 오전</b>: 미완료 이월 + 금주 계획 등록 · <b>주중</b>: 배지 클릭으로 상태 갱신, 결과 메모 · <b>금요일 오후</b>: 결과 정리 후 주간보고 생성 → 팀장님 톡 보고</div></div>';
 }
+/* ── 업무 지정 (팀장 전용) ── */
+function renderAssign(){
+  const thisWk=fmtKey(mondayOf(new Date()));
+  const nextWk=shiftWeek(thisWk,1);
+  const others=memberNames().filter(n=>!isLeader(n));
+  const a=ui.assign;
+  let html="";
+  if(mode==="shared"&&!(Number(srvVersion)>=7)){
+    html+='<div class="carry-banner" style="background:#fef3c7;border:1px solid #fcd34d;color:#78350f;margin-bottom:16px"><div>'+
+      '<strong>업무 지정을 저장하려면 서버 코드 v7 재배포가 필요합니다.</strong>'+
+      '<div style="font-size:12.5px;margin-top:5px;line-height:1.6">Apps Script에 <b>코드 v7</b>을 붙여넣고 저장 → [배포]→[배포 관리]→연필→버전 "새 버전"→배포. 기존 데이터는 유지되고 \'지시자\' 컬럼이 자동 추가됩니다.</div></div></div>';
+  }
+  html+='<div class="card" style="margin-top:0"><div class="card-title">📌 팀원에게 업무 지정</div>'+
+    '<div style="font-size:13px;color:var(--muted);margin:-6px 0 16px;line-height:1.6">지정한 업무는 담당자의 주간 업무에 <b>주황색으로 강조 표시</b>되고 즉시 알림이 갑니다. 지정 사실(지시자)이 카드에 함께 표기됩니다.</div>'+
+    '<div class="asg-form">'+
+    '<div class="asg-row">'+
+    '<label class="fld" style="flex:2;min-width:220px">업무 내용<input id="asg-text" data-action-enter="assign-add" placeholder="예: 대표님 일본 출장계획서 상신 및 출장비 신청"></label>'+
+    '<label class="fld">담당자<select id="asg-owner">'+others.map(n=>{const m=findMember(n);return "<option>"+esc(m?displayName(m):n)+"</option>";}).join("")+"</select></label>"+
+    "</div>"+
+    '<div class="asg-row">'+
+    '<label class="fld">분류<input id="asg-cat" placeholder="예: 총무 / 채용"></label>'+
+    '<label class="fld">우선순위<select id="asg-prio">'+PRIORITIES.map(p=>'<option'+(p==="보통"?" selected":"")+">"+p+"</option>").join("")+"</select></label>"+
+    '<label class="fld">완료 예정일<input type="date" id="asg-due"></label>'+
+    '<label class="fld">등록 주차<select id="asg-week"><option value="'+thisWk+'">이번 주 ('+weekLabel(thisWk).short+')</option><option value="'+nextWk+'">다음 주 ('+weekLabel(nextWk).short+")</option></select></label>"+
+    "</div>"+
+    '<label class="fld block">지시 메모 (선택)<textarea id="asg-note" placeholder="배경·기대 결과물 등 — 담당자에게 코멘트로 함께 전달됩니다" style="min-height:56px"></textarea></label>'+
+    '<div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="add-btn" data-action="assign-add" style="padding:0 24px;height:44px">지정하기</button></div>'+
+    "</div></div>";
+
+  // 담당자별 이번 주 부하 요약 (지정 판단 참고)
+  html+='<div class="card"><div class="card-title" style="font-size:15px">팀원별 이번 주 업무량</div><div class="asg-load">';
+  others.forEach(n=>{
+    const mem=findMember(n);
+    const its=(((state.weeks[thisWk]||{}).items)||[]).filter(i=>!isEv(i)&&hasOwner(i,n));
+    const undone=its.filter(i=>!["done","cancelled"].includes(i.status)).length;
+    const c=PART_COLOR[mem?mem.part:"인사"]||PART_COLOR["인사"];
+    html+='<div class="asg-load-item"><span class="oc-av" style="background:'+c.bg+';color:'+c.fg+'">'+esc(n.slice(0,1))+"</span>"+
+      '<span class="asg-load-name">'+esc(mem?displayName(mem):n)+"</span>"+
+      '<span class="asg-load-num">진행 '+undone+" · 전체 "+its.length+"</span></div>";
+  });
+  html+="</div></div>";
+
+  // 최근 내가 지정한 업무
+  const mine=allItems().filter(r=>r.it.assignedBy===state.me).sort((x,y)=>String(y.it.updatedAt).localeCompare(String(x.it.updatedAt)));
+  html+='<div class="card"><div class="card-title" style="font-size:15px">내가 지정한 업무 ('+mine.length+")</div>";
+  if(!mine.length)html+='<div style="font-size:13.5px;color:var(--muted);padding:6px 0">아직 지정한 업무가 없습니다.</div>';
+  mine.slice(0,20).forEach(r=>{
+    const it=r.it;
+    html+='<div class="dd-item" data-action="jump" data-id="'+it.id+'" data-val="'+r.wk+'">'+
+      '<span class="sr-badge '+statusClass(it.status)+'" style="font-size:11px;padding:2px 9px;flex-shrink:0">'+STATUS[it.status].label+"</span>"+
+      '<div class="dd-body"><div class="dd-text">'+esc(it.text)+"</div>"+
+      '<div class="dd-meta">'+esc(primaryOwner(it))+" · "+esc(it.category)+" · "+weekLabel(r.wk).short+(it.result?" · 결과: "+esc(it.result):"")+"</div></div>"+
+      '<span class="dd-open">열기 ›</span></div>';
+  });
+  html+="</div>";
+  return html;
+}
+function doAssign(){
+  const text=(document.getElementById("asg-text")||{}).value||"";
+  if(!text.trim())return;
+  const ownerDisp=(document.getElementById("asg-owner")||{}).value||"";
+  const owner=(state.members.find(m=>displayName(m)===ownerDisp)||{}).name||ownerDisp.split(" ")[0];
+  let cat=((document.getElementById("asg-cat")||{}).value||"").trim();
+  const prio=(document.getElementById("asg-prio")||{}).value||"보통";
+  const due=(document.getElementById("asg-due")||{}).value||"";
+  const wk=(document.getElementById("asg-week")||{}).value||fmtKey(mondayOf(new Date()));
+  const note=((document.getElementById("asg-note")||{}).value||"").trim();
+  if(!cat)cat=(PART_CATS[memberPart(owner)]||["기타"])[0];
+  ensureWeek(wk);
+  const it=makeItem(wk,memberPart(owner),owner,cat,text.trim(),{priority:prio,dueDate:normDateOnly(due),assignedBy:state.me});
+  if(note)it.comments=[{author:state.me,text:note,date:todayKey()}];
+  state.weeks[wk].items.push(it);
+  markDirty(it,wk);
+  ["asg-text","asg-cat","asg-due","asg-note"].forEach(id=>{const e=document.getElementById(id);if(e)e.value="";});
+  render();
+}
+
 /* ── 일괄 관리: 다중 선택 삭제·수정 ── */
 function mgrList(){
   const out=[];
@@ -2346,7 +2447,7 @@ function makeItem(weekKey,part,owner,cat,text,extra){
   return Object.assign({
     id:uid(),taskNo:nextTaskNo(weekKey),part,owner,category:cat,text,
     detail:"",dueDate:"",priority:"보통",status:"planned",result:"",carryReason:"",
-    carriedFrom:null,history:[],comments:[],createdAt:todayKey(),updatedAt:todayKey(),isEvent:"",chain:"",step:""
+    carriedFrom:null,history:[],comments:[],createdAt:todayKey(),updatedAt:todayKey(),isEvent:"",chain:"",step:"",assignedBy:""
   },extra||{});
 }
 function addItemFromInputs(){
@@ -2467,6 +2568,7 @@ document.addEventListener("click",async (ev)=>{
       ui.ownerFilter=(ui.ownerFilter===val?"전체":val);
       try{if(ui.ownerFilter===state.me)localStorage.setItem("wwt-myonly","1");else localStorage.removeItem("wwt-myonly");}catch(e){}
       render(); break;
+    case "assign-add": doAssign(); break;
     case "co-toggle": {
       const f=findItem(id);
       if(f){
@@ -2737,7 +2839,8 @@ document.addEventListener("keydown",(ev)=>{
   if(el.dataset&&el.dataset.actionEnter==="comment-add")addComment(el.dataset.id);
   if(el.dataset&&el.dataset.actionEnter==="member-add")addMemberAction(el.value);
   if(el.dataset&&el.dataset.actionEnter==="event-add")addEvent();
-  if(el.dataset&&el.dataset.actionEnter==="kudos-send")sendMessage("kudos");
+  if(el.dataset&&el.dataset.actionEnter==="assign-add")doAssign();
+    if(el.dataset&&el.dataset.actionEnter==="kudos-send")sendMessage("kudos");
   if(el.dataset&&el.dataset.actionEnter==="dm-send")sendMessage("dm");
 });
 
@@ -2768,6 +2871,7 @@ setInterval(async ()=>{
     ui.view="setup"; render();
   }
 })();
+
 
 </script>
 </body>

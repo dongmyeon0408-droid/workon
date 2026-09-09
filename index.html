@@ -670,6 +670,16 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
   .asg-load-name{font-size:13px; font-weight:600; color:var(--ink)}
   .asg-load-num{font-size:12px; color:var(--muted)}
 
+
+  /* ═══ 우선순위 신호등 ═══ */
+  .item.prio-edge{position:relative}
+  .item.prio-edge::before{content:""; position:absolute; left:0; top:10px; bottom:10px; width:4px; border-radius:0 4px 4px 0; background:var(--prio-bar,#2563eb)}
+  .item.prio-edge{padding-left:20px}
+  .chip.prio-sig{font-weight:600}
+  .prio-seg{display:inline-flex; gap:4px; align-items:center; background:var(--surface-soft); border-radius:9999px; padding:4px}
+  .psig{padding:6px 12px; font-size:12.5px; font-weight:600; background:var(--canvas); border:1px solid var(--hairline); border-radius:9999px; white-space:nowrap; cursor:pointer}
+  @media(hover:hover){.psig:hover{border-color:var(--ink)}}
+
 </style>
 </head>
 <body>
@@ -687,6 +697,7 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
 </div>
 <div id="modal-root"></div>
 <script>
+
 
 "use strict";
 /* ══════════ 주간 업무 트래커 v3 ══════════
@@ -741,6 +752,7 @@ const STATUS={
 };
 const STATUS_ORDER=["planned","progress","done","carried","hold","cancelled"];
 const PRIORITIES=["긴급","높음","보통","낮음"];
+const PRIO_COLOR={"긴급":{bar:"#dc2626",fg:"#b91c1c",bg:"#fee2e2",dot:"🔴"},"높음":{bar:"#f59e0b",fg:"#b45309",bg:"#fef3c7",dot:"🟡"},"보통":{bar:"#2563eb",fg:"#1d4ed8",bg:"#dbeafe",dot:"🔵"},"낮음":{bar:"#9ca3af",fg:"#6b7280",bg:"#f3f4f6",dot:"⚪"}};
 const CARRY_REASONS=["일정 미확정","유관 부서 회신 대기","우선순위 변경","자료 부족","담당자 부재","긴급업무 발생","업무 범위 변경","기타"];
 const PARTS=["인사","전산"];
 const MEMBER_PARTS=["인사","전산","팀"];
@@ -782,7 +794,7 @@ let srvVersion="";
 const now=new Date();
 const ui={
   weekKey:fmtKey(mondayOf(new Date())),
-  view:"week", ownerFilter:"전체", partFilter:"전체", expandedId:null,
+  view:"week", ownerFilter:"전체", partFilter:"전체", prioFilter:"전체", expandedId:null,
   query:"", searchStatus:"전체", searchOwner:"전체", searchPart:"전체",
   reportOpen:false, copied:false, confirmReset:false,
   setupMsg:"", setupBusy:false,
@@ -1480,7 +1492,7 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v23</span>';
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v24</span>';
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   if(isLeader())tabs.splice(1,0,["assign","업무 지정"]);
@@ -1546,8 +1558,8 @@ function itemCardHTML(it,showOwner,groupOwner){
   const dim=it.status==="carried"||it.status==="cancelled";
   let chips="";
   if(carry>0)chips+='<span class="chip carry'+(carry>=2?" hot":"")+'">이월 '+(carry+1)+'주째</span>';
-  if(it.priority==="긴급")chips+='<span class="chip prio-urgent">긴급</span>';
-  else if(it.priority==="높음")chips+='<span class="chip prio-high">높음</span>';
+  const pc=PRIO_COLOR[it.priority]||PRIO_COLOR["보통"];
+  chips+='<span class="chip prio-sig" style="background:'+pc.bg+';color:'+pc.fg+'">'+pc.dot+" "+esc(it.priority)+"</span>";
   if(it.assignedBy)chips+='<span class="chip assigned">📌 '+esc(it.assignedBy)+" 지시</span>";
   if(groupOwner&&ownersOf(it).length>1)chips+='<span class="chip" style="background:var(--surface-card);color:var(--body-c)">'+(primaryOwner(it)===groupOwner?"주담당":"공동")+"</span>";
   if(it.chain)chips+='<span class="chip chain">🔗 '+esc(it.chain)+(it.step?" · "+esc(it.step)+"단계":"")+"</span>";
@@ -1558,7 +1570,8 @@ function itemCardHTML(it,showOwner,groupOwner){
   if(it.carryReason)meta+="<span>사유: "+esc(it.carryReason)+"</span>";
 
   const assignedToMe=it.assignedBy&&hasOwner(it,state.me)&&it.status==="planned";
-  let html='<div class="item'+(dim?" dim":"")+(expanded?" expanded":"")+(overdue&&!expanded?" overdue":"")+(assignedToMe?" assigned-new":"")+'">'+
+  const _pc=PRIO_COLOR[it.priority]||PRIO_COLOR["보통"];
+  let html='<div class="item prio-edge'+(dim?" dim":"")+(expanded?" expanded":"")+(overdue&&!expanded?" overdue":"")+(assignedToMe?" assigned-new":"")+'" style="--prio-bar:'+_pc.bar+'">'+
     '<div class="item-top">'+
     '<button class="status-badge '+statusClass(it.status)+'" data-action="cycle" data-id="'+it.id+'" title="클릭: 예정→진행중→완료">'+STATUS[it.status].label+"</button>"+
     '<div class="item-main" data-action="expand" data-id="'+it.id+'">'+
@@ -1651,6 +1664,7 @@ function renderWeek(){
   const all=state.weeks[ui.weekKey].items.filter(i=>!isEv(i));
   let items=ui.ownerFilter==="전체"?all:all.filter(i=>hasOwner(i,ui.ownerFilter));
   if(ui.partFilter!=="전체")items=items.filter(i=>(i.part||"인사")===ui.partFilter);
+  if(ui.prioFilter&&ui.prioFilter!=="전체")items=items.filter(i=>i.priority===ui.prioFilter);
   const done=items.filter(i=>i.status==="done").length;
   const active=items.filter(i=>i.status!=="cancelled").length;
   const pct=active?Math.round(done/active*100):0;
@@ -1665,6 +1679,10 @@ function renderWeek(){
     '<button class="seg'+(ui.weekGroup==="owner"?" active":"")+'" data-action="week-group" data-val="owner">담당자별</button>'+
     "</div>"+
     '<button class="my-toggle'+(ui.ownerFilter===state.me?" on":"")+'" data-action="my-only" title="내가 주담당이거나 공동 담당인 업무만 표시">👤 내 업무만'+(ui.ownerFilter===state.me?" ✓":"")+"</button>"+
+    '<div class="prio-seg" title="우선순위(신호등)로 걸러보기">'+
+    ['긴급','높음','보통'].map(function(p){var pc=PRIO_COLOR[p];return '<button class="psig'+(ui.prioFilter===p?" on":"")+'" data-action="prio-filter" data-val="'+p+'" style="'+(ui.prioFilter===p?"background:"+pc.bar+";color:#fff;border-color:"+pc.bar:"color:"+pc.fg)+'">'+pc.dot+" "+p+"</button>";}).join("")+
+    (ui.prioFilter!=="전체"?'<button class="psig" data-action="prio-filter" data-val="전체" title="해제">✕</button>':"")+
+    "</div>"+
     (ui.ownerFilter!=="전체"&&ui.ownerFilter!==state.me?'<button class="owner-chip on" data-action="owner-click" data-val="'+esc(ui.ownerFilter)+'" title="필터 해제">'+
       '<span class="oc-av" style="background:rgba(255,255,255,.25);color:#fff">'+esc(ui.ownerFilter.slice(0,1))+"</span>"+esc(ui.ownerFilter)+" 업무만 보는 중 ✕</button>":"")+
     '<div class="progress-wrap" style="flex:1;margin:0;min-width:200px">'+
@@ -2560,6 +2578,7 @@ document.addEventListener("click",async (ev)=>{
     case "week-today": ui.weekKey=fmtKey(mondayOf(new Date())); ui.expandedId=null; render(); break;
     case "part-filter": ui.partFilter=val; render(); break;
     case "week-group": ui.weekGroup=val; try{localStorage.setItem("wwt-weekgroup",val);}catch(e){} render(); break;
+    case "prio-filter": ui.prioFilter=(ui.prioFilter===val?"전체":val); render(); break;
     case "my-only":
       if(ui.ownerFilter===state.me){ui.ownerFilter="전체";try{localStorage.removeItem("wwt-myonly");}catch(e){}}
       else{ui.ownerFilter=state.me;try{localStorage.setItem("wwt-myonly","1");}catch(e){}}
@@ -2871,6 +2890,7 @@ setInterval(async ()=>{
     ui.view="setup"; render();
   }
 })();
+
 
 
 </script>

@@ -680,6 +680,22 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
   .psig{padding:6px 12px; font-size:12.5px; font-weight:600; background:var(--canvas); border:1px solid var(--hairline); border-radius:9999px; white-space:nowrap; cursor:pointer}
   @media(hover:hover){.psig:hover{border-color:var(--ink)}}
 
+
+  /* ═══ 드래그 앤 드롭 ═══ */
+  .draggable-item{position:relative}
+  .item.prio-edge.draggable-item{padding-left:34px}
+  .drag-handle{position:absolute; left:20px; top:50%; transform:translateY(-50%); color:var(--muted-soft); font-size:13px; letter-spacing:-2px; cursor:grab; user-select:none; line-height:1; writing-mode:vertical-lr; opacity:.45}
+  .draggable-item:active .drag-handle{cursor:grabbing}
+  @media(hover:hover){.draggable-item:hover .drag-handle{opacity:.9}}
+  .item.dragging{opacity:.4; box-shadow:0 8px 20px rgba(15,23,42,.18)}
+  .drop-zone{border-radius:12px; transition:background .12s, box-shadow .12s}
+  .drop-zone.drag-over{background:#eff6ff; box-shadow:inset 0 0 0 2px var(--accent); padding:4px}
+  .drop-zone.drag-over .cat-header,.drop-zone.drag-over .owner-header{opacity:.85}
+  @media(max-width:768px){
+    .drag-handle{left:14px; opacity:.6}
+    .item.prio-edge.draggable-item{padding-left:28px}
+  }
+
 </style>
 </head>
 <body>
@@ -697,6 +713,7 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
 </div>
 <div id="modal-root"></div>
 <script>
+
 
 
 "use strict";
@@ -1492,7 +1509,7 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v24</span>';
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v25</span>';
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   if(isLeader())tabs.splice(1,0,["assign","업무 지정"]);
@@ -1571,7 +1588,9 @@ function itemCardHTML(it,showOwner,groupOwner){
 
   const assignedToMe=it.assignedBy&&hasOwner(it,state.me)&&it.status==="planned";
   const _pc=PRIO_COLOR[it.priority]||PRIO_COLOR["보통"];
-  let html='<div class="item prio-edge'+(dim?" dim":"")+(expanded?" expanded":"")+(overdue&&!expanded?" overdue":"")+(assignedToMe?" assigned-new":"")+'" style="--prio-bar:'+_pc.bar+'">'+
+  const canDrag=!isEv(it)&&!expanded;  // 펼친 카드·일정은 드래그 제외(오조작 방지)
+  let html='<div class="item prio-edge'+(dim?" dim":"")+(expanded?" expanded":"")+(overdue&&!expanded?" overdue":"")+(assignedToMe?" assigned-new":"")+(canDrag?" draggable-item":"")+'" style="--prio-bar:'+_pc.bar+'"'+(canDrag?' draggable="true" data-drag-id="'+it.id+'"':"")+'>'+
+    (canDrag?'<span class="drag-handle" title="끌어서 이동">⋮⋮</span>':"")+
     '<div class="item-top">'+
     '<button class="status-badge '+statusClass(it.status)+'" data-action="cycle" data-id="'+it.id+'" title="클릭: 예정→진행중→완료">'+STATUS[it.status].label+"</button>"+
     '<div class="item-main" data-action="expand" data-id="'+it.id+'">'+
@@ -1721,7 +1740,7 @@ function renderWeek(){
         if(!oItems.length)continue;
         const om=findMember(oname);
         const oDone=oItems.filter(i=>i.status==="done").length;
-        html+='<div class="cat-section"><div class="owner-header">'+
+        html+='<div class="cat-section drop-zone" data-drop-owner="'+esc(oname)+'" data-drop-part="'+part+'"><div class="owner-header">'+
           '<span class="oc-av big" style="background:'+c.bg+';color:'+c.fg+'">'+esc(oname.slice(0,1))+"</span>"+
           '<span class="owner-name">'+esc(om?displayName(om):oname)+"</span>"+
           (om&&om.role!=="파트원"?'<span class="role-chip">'+esc(om.role)+"</span>":"")+
@@ -1734,7 +1753,7 @@ function renderWeek(){
       let ci=0;
       for(const [cat,its] of sortedCatEntries(part,pItems)){
         ci++;
-        html+='<div class="cat-section"><div class="cat-header"><span class="cat-num" style="background:'+c.fg+'">'+ci+"</span>"+
+        html+='<div class="cat-section drop-zone" data-drop-cat="'+esc(cat)+'" data-drop-part="'+part+'"><div class="cat-header"><span class="cat-num" style="background:'+c.fg+'">'+ci+"</span>"+
           '<span class="cat-name">'+esc(cat)+'</span><span class="cat-count">'+its.filter(i=>i.status==="done").length+"/"+its.length+"</span></div>";
         sortItems(its).forEach(it=>{html+=itemCardHTML(it,showOwner);});
         html+="</div>";
@@ -2847,6 +2866,59 @@ document.addEventListener("input",(ev)=>{
   }
 });
 
+
+/* ── 드래그 앤 드롭: 카드를 다른 분류/담당자 칸으로 이동 ── */
+let _dragId=null;
+function applyDrop(id,zone){
+  const f=findItem(id);
+  if(!f)return;
+  const it=f.it;
+  const part=zone.getAttribute("data-drop-part")||it.part;
+  if(zone.hasAttribute("data-drop-owner")){
+    const owner=zone.getAttribute("data-drop-owner");
+    if(primaryOwner(it)===owner&&it.part===part)return; // 변화 없음
+    const rest=ownersOf(it).filter(n=>n!==owner);        // 주담당만 교체, 공동담당 유지
+    patchItem(id,{owner:[owner].concat(rest).join(", "),part:part});
+  }else if(zone.hasAttribute("data-drop-cat")){
+    const cat=zone.getAttribute("data-drop-cat");
+    if(it.category===cat&&it.part===part)return;
+    patchItem(id,{category:cat,part:part});
+  }
+  render();
+}
+document.addEventListener("dragstart",(ev)=>{
+  const card=ev.target.closest(".draggable-item");
+  if(!card){return;}
+  _dragId=card.getAttribute("data-drag-id");
+  card.classList.add("dragging");
+  try{ev.dataTransfer.effectAllowed="move";ev.dataTransfer.setData("text/plain",_dragId);}catch(e){}
+});
+document.addEventListener("dragend",(ev)=>{
+  const card=ev.target.closest(".draggable-item");
+  if(card)card.classList.remove("dragging");
+  document.querySelectorAll(".drop-zone.drag-over").forEach(z=>z.classList.remove("drag-over"));
+  _dragId=null;
+});
+document.addEventListener("dragover",(ev)=>{
+  const zone=ev.target.closest(".drop-zone");
+  if(!zone||!_dragId)return;
+  ev.preventDefault();
+  try{ev.dataTransfer.dropEffect="move";}catch(e){}
+  if(!zone.classList.contains("drag-over")){
+    document.querySelectorAll(".drop-zone.drag-over").forEach(z=>z.classList.remove("drag-over"));
+    zone.classList.add("drag-over");
+  }
+});
+document.addEventListener("drop",(ev)=>{
+  const zone=ev.target.closest(".drop-zone");
+  if(!zone)return;
+  ev.preventDefault();
+  const id=_dragId||(ev.dataTransfer&&ev.dataTransfer.getData("text/plain"));
+  zone.classList.remove("drag-over");
+  if(id)applyDrop(id,zone);
+  _dragId=null;
+});
+
 document.addEventListener("keydown",(ev)=>{
   if(ev.key==="Escape"&&ui.pickUser&&localStorage.getItem("wwt-me")){ui.pickUser=false;renderModal();return;}
   if(ev.key==="Escape"&&ui.reasonModal){ui.reasonModal=null;renderModal();render();return;}
@@ -2890,6 +2962,7 @@ setInterval(async ()=>{
     ui.view="setup"; render();
   }
 })();
+
 
 
 

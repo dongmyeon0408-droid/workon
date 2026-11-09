@@ -753,6 +753,34 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
     .dc-b{flex:1}
   }
 
+
+  /* ═══ v28: 담당자별 분류 트리 · 탭 강조 · 보고협의 제안/확정 ═══ */
+  .cat-group{margin:6px 0 10px 8px; padding-left:12px; border-left:2px solid var(--hairline)}
+  .cat-group-head{display:flex; align-items:center; gap:7px; font-size:13px; font-weight:600; color:var(--body-c); margin-bottom:6px}
+  .cat-dot{width:7px; height:7px; border-radius:9999px; display:inline-block; flex-shrink:0}
+  .cat-group-head .cat-count{margin-left:4px}
+  /* 탭 강조(보고·협의) */
+  .tab.tab-hot{color:#6d28d9; font-weight:600}
+  .tab.tab-hot.active{color:#6d28d9}
+  .tab-badge{display:inline-flex; align-items:center; justify-content:center; min-width:17px; height:17px; padding:0 5px; margin-left:6px; background:#7c3aed; color:#fff; font-size:11px; font-weight:700; border-radius:9999px; vertical-align:middle}
+  /* 보고협의 제안/확정 2단 */
+  .dc-head{display:flex; gap:10px; align-items:flex-start}
+  .dc-due{font-size:12px; font-weight:600; color:var(--body-c); background:var(--surface-card); border-radius:9999px; padding:3px 11px; white-space:nowrap; flex-shrink:0}
+  .dc-plan{display:flex; align-items:stretch; gap:8px; margin-top:11px}
+  .dc-slot{flex:1; background:var(--surface-soft); border:1px solid var(--hairline); border-radius:9px; padding:8px 12px; display:flex; flex-direction:column; gap:3px}
+  .dc-slot.req{background:#f5f3ff; border-color:#ddd6fe}
+  .dc-slot.fixed{background:#eff6ff; border-color:#bfdbfe}
+  .dc-slot.over{background:#fef2f2; border-color:#fecaca}
+  .dc-slot-lb{font-size:11px; font-weight:600; color:var(--muted)}
+  .dc-slot b{font-size:14px; color:var(--ink)}
+  .dc-arrow{align-self:center; color:var(--muted-soft); font-weight:700}
+  .dc-b.mini{height:34px; padding:0 12px; font-size:12px; background:var(--surface-card); border-color:var(--hairline)}
+  @media(max-width:768px){
+    .dc-plan{flex-direction:column; gap:6px}
+    .dc-arrow{transform:rotate(90deg)}
+    .dc-b.mini{width:100%}
+  }
+
 </style>
 </head>
 <body>
@@ -770,6 +798,7 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
 </div>
 <div id="modal-root"></div>
 <script>
+
 
 
 
@@ -945,7 +974,7 @@ function normalizeState(s){
     it.dueDate=normDateOnly(it.dueDate);
     it.chain=it.chain||"";it.step=it.step||"";it.assignedBy=it.assignedBy||"";
     it.needDiscuss=(it.needDiscuss==="1"||it.needDiscuss===1||it.needDiscuss===true)?"1":"";it.discussDate=normDateOnly(it.discussDate);
-    it.confirmDate=normDateOnly(it.confirmDate);it.confirmSlot=it.confirmSlot||"";it.discussStatus=it.discussStatus||(it.needDiscuss==="1"?"요청":"");
+    it.discussSlot=it.discussSlot||"";it.confirmDate=normDateOnly(it.confirmDate);it.confirmSlot=it.confirmSlot||"";it.discussStatus=it.discussStatus||(it.needDiscuss==="1"?"요청":"");
     it.owner=ownersOf(it).join(", ")||it.owner;
     if(it.isEvent==null)it.isEvent="";
     it.history=it.history||[];it.comments=it.comments||[];
@@ -1574,13 +1603,13 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v27</span>';
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v28</span>';
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["discuss","보고·협의"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   if(isLeader())tabs.splice(1,0,["assign","업무 지정"]);
   document.getElementById("tabs").innerHTML=
     '<div class="pill-group">'+
-    tabs.map(([k,l])=>'<button class="tab'+(ui.view===k?" active":"")+'" data-action="tab" data-val="'+k+'">'+l+"</button>").join("")+
+    tabs.map(([k,l])=>{var ex='';var cls='';if(k==='discuss'){var dn=state.weeks?allItems().filter(function(r){return !isEv(r.it)&&r.it.needDiscuss==='1'&&(r.it.discussStatus||'요청')!=='완료'&&r.it.status!=='cancelled';}).length:0;cls=' tab-hot';if(dn)ex='<span class="tab-badge">'+dn+'</span>';}return '<button class="tab'+(ui.view===k?' active':'')+cls+'" data-action="tab" data-val="'+k+'">'+l+ex+"</button>";}).join("")+
     "</div>"+
     '<div class="spacer"></div>'+
     (state?'<button class="me-chip" data-action="switch-user" title="다른 사용자로 전환">'+
@@ -1685,7 +1714,7 @@ function itemCardHTML(it,showOwner,groupOwner){
       '<label class="fld">분류<input data-field="category" data-id="'+it.id+'" list="cat-list-'+it.part+'" value="'+esc(it.category)+'"></label>'+
       '<label class="fld">프로젝트(연결)<input data-field="chain" data-id="'+it.id+'" list="chain-list" value="'+esc(it.chain||"")+'" placeholder="예: 근태솔루션 도입"'+(Number(srvVersion)>=6||mode!=="shared"?"":' title="저장하려면 서버 코드 v6 재배포 필요"')+"></label>"+
       '<label class="fld">단계<input type="number" min="1" max="99" data-field="step" data-id="'+it.id+'" value="'+esc(it.step||"")+'" placeholder="순번"></label>'+
-      '<label class="fld">협의 희망일<input type="date" data-field="discussDate" data-id="'+it.id+'" value="'+esc(it.discussDate||"")+'" title="팀장 보고·팀 협의를 하고 싶은 날짜"></label>'+
+      '<label class="fld">협의 희망일<input type="date" data-field="discussDate" data-id="'+it.id+'" value="'+esc(it.discussDate||"")+'" title="보고·협의를 하고 싶은 날짜(가제안)"></label>'+'<label class="fld">희망 시간<select data-field="discussSlot" data-id="'+it.id+'">'+DISCUSS_SLOTS.map(s=>'<option value="'+s+'"'+(it.discussSlot===s?" selected":"")+'>'+(s||"미정")+"</option>").join("")+"</select></label>"+
       "</div>"+
       '<label class="fld block" style="margin-top:10px;flex-direction:row;align-items:center;gap:8px;cursor:pointer">'+
       '<input type="checkbox" data-field="needDiscuss" data-id="'+it.id+'"'+(it.needDiscuss==="1"?" checked":"")+' style="width:17px;height:17px;accent-color:var(--primary)">'+
@@ -1820,7 +1849,13 @@ function renderWeek(){
           '<span class="owner-name">'+esc(om?displayName(om):oname)+"</span>"+
           (om&&om.role!=="파트원"?'<span class="role-chip">'+esc(om.role)+"</span>":"")+
           '<span class="cat-count">'+oDone+"/"+oItems.length+"</span></div>";
-        oItems.forEach(it=>{html+=itemCardHTML(it,false,oname);});
+        // 담당자 안에서 분류(대주제)별로 다시 묶어 트리로 표시
+        for(const [cat,its] of sortedCatEntries(part,oItems)){
+          html+='<div class="cat-group"><div class="cat-group-head"><span class="cat-dot" style="background:'+c.fg+'"></span>'+esc(cat)+
+            '<span class="cat-count">'+its.filter(i=>i.status==="done").length+"/"+its.length+"</span></div>";
+          sortItems(its).forEach(it=>{html+=itemCardHTML(it,false,oname);});
+          html+="</div>";
+        }
         html+="</div>";
       }
     }else{
@@ -2407,29 +2442,33 @@ function discussRow(it,wk){
   const pc=PRIO_COLOR[it.priority]||PRIO_COLOR["보통"];
   const dOver=it.discussDate&&it.discussDate<today&&st!=="완료";
   const cOver=it.confirmDate&&it.confirmDate<today&&st!=="완료";
-  // 날짜 요약
-  let dates='<span class="dc-date'+(dOver?" over":"")+'">🗣 희망 '+(it.discussDate?it.discussDate.slice(5).replace("-","."):"미정")+"</span>";
-  if(it.confirmDate||it.confirmSlot){
-    dates+='<span class="dc-date confirm'+(cOver?" over":"")+'">✅ 확정 '+(it.confirmDate?it.confirmDate.slice(5).replace("-","."):"")+(it.confirmSlot?" "+it.confirmSlot:"")+"</span>";
-  }
-  if(it.dueDate)dates+='<span class="dc-date">⏰ 마감 '+it.dueDate.slice(5).replace("-",".")+"</span>";
+  const propTxt=(it.discussDate?it.discussDate.slice(5).replace("-","."):"미정")+(it.discussSlot?" "+it.discussSlot:"");
+  const confTxt=(it.confirmDate?it.confirmDate.slice(5).replace("-","."):"")+(it.confirmSlot?" "+it.confirmSlot:"");
 
   let h='<div class="dc-item'+(st==="완료"?" done":"")+'" style="--prio-bar:'+pc.bar+'">';
-  // 상단: 제목 + 상태
-  h+='<div class="dc-head"><div class="dc-main" data-action="jump" data-id="'+it.id+'" data-val="'+wk+'" style="cursor:pointer;flex:1;min-width:0">'+
-    '<div class="dc-text">'+dstatusBadge(st)+esc(it.text)+'</div>'+
-    '<div class="dc-meta">'+ownersOf(it).map(n=>esc(n)).join(", ")+" · "+esc(it.part||"인사")+" · "+esc(it.category)+
-    (it.detail?' · '+esc(it.detail):"")+"</div></div></div>";
-  h+='<div class="dc-dates">'+dates+"</div>";
-  // 컨트롤: 확정일/시간대 + 상태 버튼 + 제거 (상신자·팀장 공용)
+  // 상단: 상태 배지 + 제목 + 메타 (클릭 시 해당 업무로 이동)
+  h+='<div class="dc-head" data-action="jump" data-id="'+it.id+'" data-val="'+wk+'" style="cursor:pointer">'+
+    '<div style="flex:1;min-width:0"><div class="dc-text">'+dstatusBadge(st)+esc(it.text)+'</div>'+
+    '<div class="dc-meta">'+ownersOf(it).map(n=>esc(n)).join(", ")+" · "+esc(it.part||"인사")+" · "+esc(it.category)+" · "+STATUS[it.status].label+
+    (it.detail?' · '+esc(it.detail):"")+"</div></div>"+
+    (it.dueDate?'<span class="dc-due">⏰ 마감 '+it.dueDate.slice(5).replace("-",".")+"</span>":"")+"</div>";
+
+  // 제안(상신자) / 확정(팀장) 2단 박스
+  h+='<div class="dc-plan">'+
+    '<div class="dc-slot req'+(dOver?" over":"")+'"><span class="dc-slot-lb">🗣 상신자 제안</span><b>'+propTxt+"</b></div>"+
+    '<span class="dc-arrow">→</span>'+
+    '<div class="dc-slot'+(it.confirmDate?" fixed":"")+(cOver?" over":"")+'"><span class="dc-slot-lb">✅ 팀장 확정</span><b>'+(confTxt||"미정")+"</b></div>"+
+    "</div>";
+
+  // 컨트롤: 확정일/시간대(팀장) + 상태 버튼 + 제거
   h+='<div class="dc-ctrl">'+
     '<label class="dc-cf">확정일<input type="date" data-field="confirmDate" data-id="'+it.id+'" value="'+esc(it.confirmDate||"")+'"></label>'+
-    '<label class="dc-cf">시간<select data-field="confirmSlot" data-id="'+it.id+'">'+
+    '<label class="dc-cf">확정시간<select data-field="confirmSlot" data-id="'+it.id+'">'+
       DISCUSS_SLOTS.map(s=>'<option value="'+s+'"'+(it.confirmSlot===s?" selected":"")+'>'+(s||"미정")+"</option>").join("")+"</select></label>"+
+    '<button class="dc-b mini" data-action="dc-adopt" data-id="'+it.id+'" title="상신자가 제안한 희망일·시각을 확정으로 그대로 반영">제안대로 확정</button>'+
     '<div class="dc-btns">'+
-    (st!=="확정"?'<button class="dc-b confirm" data-action="dc-status" data-id="'+it.id+'" data-val="확정">확정</button>':"")+
-    (st!=="완료"?'<button class="dc-b done" data-action="dc-status" data-id="'+it.id+'" data-val="완료">보고 완료</button>':'<button class="dc-b" data-action="dc-status" data-id="'+it.id+'" data-val="요청">완료 취소</button>')+
-    (st!=="연기"?'<button class="dc-b defer" data-action="dc-status" data-id="'+it.id+'" data-val="연기">연기</button>':"")+
+    (st!=="완료"?'<button class="dc-b done" data-action="dc-status" data-id="'+it.id+'" data-val="완료">보고 완료</button>':'<button class="dc-b" data-action="dc-status" data-id="'+it.id+'" data-val="확정">완료 취소</button>')+
+    (st!=="연기"?'<button class="dc-b defer" data-action="dc-status" data-id="'+it.id+'" data-val="연기">연기</button>':'<button class="dc-b" data-action="dc-status" data-id="'+it.id+'" data-val="확정">연기 취소</button>')+
     '<button class="dc-b remove" data-action="dc-remove" data-id="'+it.id+'">제거</button>'+
     "</div></div>";
   h+="</div>";
@@ -2646,7 +2685,7 @@ function makeItem(weekKey,part,owner,cat,text,extra){
   return Object.assign({
     id:uid(),taskNo:nextTaskNo(weekKey),part,owner,category:cat,text,
     detail:"",dueDate:"",priority:"보통",status:"planned",result:"",carryReason:"",
-    carriedFrom:null,history:[],comments:[],createdAt:todayKey(),updatedAt:todayKey(),isEvent:"",chain:"",step:"",assignedBy:"",needDiscuss:"",discussDate:"",confirmDate:"",confirmSlot:"",discussStatus:""
+    carriedFrom:null,history:[],comments:[],createdAt:todayKey(),updatedAt:todayKey(),isEvent:"",chain:"",step:"",assignedBy:"",needDiscuss:"",discussDate:"",discussSlot:"",confirmDate:"",confirmSlot:"",discussStatus:""
   },extra||{});
 }
 function addItemFromInputs(){
@@ -2774,6 +2813,11 @@ document.addEventListener("click",async (ev)=>{
       const patch={discussStatus:val};
       if(val==="완료"){patch.result=f.it.result||("보고 완료 ("+todayKey()+")");}
       patchItem(id,patch); render(); break;
+    }
+    case "dc-adopt": {
+      const f=findItem(id); if(!f)break;
+      patchItem(id,{confirmDate:f.it.discussDate||"",confirmSlot:f.it.discussSlot||"",discussStatus:"확정"});
+      render(); break;
     }
     case "dc-remove": {
       if(confirm("이 과제를 보고·협의 목록에서 제거할까요? (업무 자체는 삭제되지 않습니다)")){
@@ -3025,7 +3069,7 @@ document.addEventListener("change",(ev)=>{
     }
     const patch={};patch[el.dataset.field]=el.value;
     patchItem(el.dataset.id,patch);
-    if(["status","priority","owner","carryReason","text","dueDate","part","category","chain","step","discussDate","confirmDate","confirmSlot","discussStatus"].includes(el.dataset.field))render();
+    if(["status","priority","owner","carryReason","text","dueDate","part","category","chain","step","discussDate","discussSlot","confirmDate","confirmSlot","discussStatus"].includes(el.dataset.field))render();
     return;
   }
   const a=el.dataset?el.dataset.action:null;
@@ -3150,6 +3194,7 @@ setInterval(async ()=>{
     ui.view="setup"; render();
   }
 })();
+
 
 
 

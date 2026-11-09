@@ -819,6 +819,7 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
 
 
 
+
 "use strict";
 /* ══════════ 주간 업무 트래커 v3 ══════════
    인재문화팀: 팀장 임무택 상무 / 인사파트(정효남·김동면·김신혜) / 전산파트(안성민·전형만)
@@ -1071,6 +1072,22 @@ function fromServer(data){
   });
 }
 
+/* 서버 데이터로 교체하되, 아직 전송 안 된 내 변경(dirty)은 보존해 덮어쓰기 방지 */
+function mergeDirty(merged){
+  if(!dirty.items.size&&!dirty.deletes.size)return merged;
+  dirty.items.forEach((di,id)=>{
+    const wk=normWeekKey(di.week);
+    // 모든 주차에서 이 id 제거 후 올바른 주차에 로컬 버전 삽입
+    Object.keys(merged.weeks).forEach(w=>{merged.weeks[w].items=merged.weeks[w].items.filter(x=>x.id!==id);});
+    if(!merged.weeks[wk])merged.weeks[wk]={items:[]};
+    const copy=JSON.parse(JSON.stringify(di));delete copy.week;
+    merged.weeks[wk].items.push(copy);
+  });
+  dirty.deletes.forEach(id=>{
+    Object.keys(merged.weeks).forEach(w=>{merged.weeks[w].items=merged.weeks[w].items.filter(x=>x.id!==id);});
+  });
+  return normalizeState(merged);
+}
 async function loadAll(){
   if(mode!=="shared"||!apiUrl){
     const raw=localStorage.getItem(KEY);
@@ -1089,7 +1106,7 @@ async function loadAll(){
       state=normalizeState({weeks:{},members:[],me:localStorage.getItem("wwt-me")||""});
       ui.serverEmpty=true;
     }else{
-      state=fromServer(data);
+      state=mergeDirty(fromServer(data));
       ui.serverEmpty=false;
     }
     runNotiDiff();
@@ -1621,7 +1638,7 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v29</span>';
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v30</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["discuss","보고·협의"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   if(isLeader())tabs.splice(1,0,["assign","업무 지정"]);
@@ -1768,7 +1785,8 @@ function itemCardHTML(it,showOwner,groupOwner){
         CARRY_REASONS.map(r=>'<option'+(it.carryReason===r?" selected":"")+">"+r+"</option>").join("")+"</select></label>";
     }
     html+='<label class="fld block">업무명 수정<input data-field="text" data-id="'+it.id+'" value="'+esc(it.text)+'" style="width:100%"></label>'+
-      '<label class="fld block">상세 계획 · 예상 결과물<textarea data-field="detail" data-id="'+it.id+'" placeholder="무엇을 언제까지 어떤 결과물로 완료할지">'+esc(it.detail)+"</textarea></label>";
+      '<label class="fld block">상세 계획 · 예상 결과물<textarea data-field="detail" data-id="'+it.id+'" placeholder="무엇을 언제까지 어떤 결과물로 완료할지">'+esc(it.detail)+"</textarea></label>"+
+      '<label class="fld block">📝 결과 메모 (상세)<textarea data-field="result" data-id="'+it.id+'" placeholder="진행 결과·성과를 자유롭게 기록 (예: 만족도 4.4/5.0 · 결재 완료 · 링크). 위 한 줄 입력칸과 같은 내용입니다.">'+esc(it.result)+"</textarea></label>";
     html+='<div style="margin-top:14px"><div style="font-size:12.5px;font-weight:600;color:var(--sub);margin-bottom:6px">코멘트 ('+(it.comments||[]).length+")</div>";
     (it.comments||[]).forEach(c=>{
       const leader=findMember(c.author)&&findMember(c.author).role==="팀장";
@@ -2519,7 +2537,13 @@ function renderDiscuss(){
   const oneOnOne=active.filter(r=>(r.it.meetType||"1:1 보고")!=="팀 회의");
   const teamMtg=active.filter(r=>(r.it.meetType||"1:1 보고")==="팀 회의");
 
-  let html='<div class="card" style="margin-top:0"><div class="card-title">📋 보고·협의가 필요한 과제</div>'+
+  let html="";
+  if(mode==="shared"&&srvVersion&&!(Number(srvVersion)>=11)){
+    html+='<div class="carry-banner" style="background:#fee2e2;border:1px solid #fca5a5;color:#7f1d1d;margin-bottom:16px"><div>'+
+      '<strong>⚠ 서버 코드가 v11 미만입니다 (현재 v'+esc(srvVersion)+'). 보고·협의 설정이 팀원들에게 공유되지 않습니다.</strong>'+
+      '<div style="font-size:12.5px;margin-top:5px;line-height:1.6">Apps Script에 <b>코드 v11</b>을 붙여넣고 저장 → [배포]→[배포 관리]→연필→버전 "새 버전"→배포 후 ↻ 새로고침하세요. 재배포 전까지는 본인 화면에만 보입니다.</div></div></div>';
+  }
+  html+='<div class="card" style="margin-top:0"><div class="card-title">📋 보고·협의가 필요한 과제</div>'+
     '<div style="font-size:13px;color:var(--muted);margin:-6px 0 4px;line-height:1.6">담당자가 업무 [상세 ▼]에서 <b>"📋 보고·협의 필요"</b>를 체크하고 <b>희망일·시각</b>을 제안하면 여기에 모입니다. '+
     '팀장님은 <b>1:1 보고 ↔ 팀 회의</b>로 주관을 정하고(팀 회의는 참석자 지정), <b>일정을 확정</b>한 뒤 완료 처리하시면 됩니다.</div>'+
     '<div class="dc-stat"><span>진행 <b>'+active.length+'</b>건</span><span>🧑‍💼 1:1 <b>'+oneOnOne.length+'</b></span><span>👥 회의 <b>'+teamMtg.length+'</b></span>'+
@@ -3134,6 +3158,12 @@ document.addEventListener("change",(ev)=>{
 
 document.addEventListener("input",(ev)=>{
   const el=ev.target;
+  // 결과 메모·텍스트/상세 입력: 타이핑 즉시 상태 반영(포커스·커서 유지, 재렌더 안 함) → 동기화로 사라지는 문제 방지
+  if(el.dataset&&el.dataset.id&&["result","detail","text"].includes(el.dataset.field)){
+    const f=findItem(el.dataset.id);
+    if(f){f.it[el.dataset.field]=el.value;f.it.updatedAt=todayKey();markDirty(f.it,f.wk);}
+    return;
+  }
   if(el.dataset&&el.dataset.actionInput==="search"){
     ui.query=el.value;
     const box=document.getElementById("search-results");
@@ -3243,6 +3273,7 @@ setInterval(async ()=>{
     ui.view="setup"; render();
   }
 })();
+
 
 
 

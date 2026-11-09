@@ -696,6 +696,30 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
     .item.prio-edge.draggable-item{padding-left:28px}
   }
 
+
+  /* ═══ 보고·협의 ═══ */
+  .chip.discuss{background:#ede9fe; color:#6d28d9; font-weight:600}
+  .dc-stat{display:flex; gap:18px; flex-wrap:wrap; font-size:13px; color:var(--muted); margin-top:8px}
+  .dc-stat b{color:var(--ink); font-size:15px}
+  .dc-stat b.hot{color:var(--error)}
+  .dc-item{display:flex; gap:12px; align-items:stretch; background:var(--canvas); border:1px solid var(--hairline); border-radius:10px; padding:12px 14px 12px 16px; margin-bottom:8px; cursor:pointer; position:relative; transition:border-color .12s, box-shadow .12s}
+  .dc-item::before{content:""; position:absolute; left:0; top:10px; bottom:10px; width:4px; border-radius:0 4px 4px 0; background:var(--prio-bar,#2563eb)}
+  @media(hover:hover){.dc-item:hover{border-color:var(--ink); box-shadow:var(--shadow-sm)}}
+  .dc-main{flex:1; min-width:0}
+  .dc-text{font-size:14.5px; font-weight:600; color:var(--ink); line-height:1.4; word-break:keep-all}
+  .dc-meta{font-size:12px; color:var(--muted); margin-top:3px}
+  .dc-detail{font-size:12.5px; color:var(--body-c); margin-top:5px; line-height:1.5; background:var(--surface-soft); border-radius:7px; padding:6px 9px}
+  .dc-right{display:flex; flex-direction:column; align-items:flex-end; justify-content:space-between; gap:8px; flex-shrink:0}
+  .dc-dates{display:flex; flex-direction:column; gap:4px; align-items:flex-end}
+  .dc-date{font-size:12px; font-weight:600; color:var(--body-c); background:var(--surface-card); border-radius:9999px; padding:3px 11px; white-space:nowrap}
+  .dc-date.over{background:#fee2e2; color:#b91c1c}
+  .dd-open{font-size:11.5px; color:var(--muted-soft); white-space:nowrap}
+  @media(max-width:768px){
+    .dc-item{flex-direction:column; gap:8px}
+    .dc-right{flex-direction:row; align-items:center; width:100%}
+    .dc-dates{flex-direction:row; flex-wrap:wrap}
+  }
+
 </style>
 </head>
 <body>
@@ -713,6 +737,7 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
 </div>
 <div id="modal-root"></div>
 <script>
+
 
 
 
@@ -882,6 +907,7 @@ function normalizeState(s){
     else if(!it.part||!PARTS.includes(it.part))it.part=guessPart(it.category);
     it.dueDate=normDateOnly(it.dueDate);
     it.chain=it.chain||"";it.step=it.step||"";it.assignedBy=it.assignedBy||"";
+    it.needDiscuss=(it.needDiscuss==="1"||it.needDiscuss===1||it.needDiscuss===true)?"1":"";it.discussDate=normDateOnly(it.discussDate);
     it.owner=ownersOf(it).join(", ")||it.owner;
     if(it.isEvent==null)it.isEvent="";
     it.history=it.history||[];it.comments=it.comments||[];
@@ -1498,6 +1524,7 @@ function render(){
   else if(ui.view==="people")app.innerHTML=warn+renderPeople();
   else if(ui.view==="msg")app.innerHTML=warn+renderMsg();
   else if(ui.view==="assign")app.innerHTML=warn+(isLeader()?renderAssign():'<div class="empty">이 탭은 팀장만 사용할 수 있습니다.</div>');
+  else if(ui.view==="discuss")app.innerHTML=warn+renderDiscuss();
   else if(ui.view==="mgr")app.innerHTML=warn+renderMgr();
   else if(ui.view==="guide")app.innerHTML=renderGuide();
   else app.innerHTML=warn+renderSearch();
@@ -1509,9 +1536,9 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v25</span>';
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v26</span>';
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
-  const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
+  const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["discuss","보고·협의"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   if(isLeader())tabs.splice(1,0,["assign","업무 지정"]);
   document.getElementById("tabs").innerHTML=
     '<div class="pill-group">'+
@@ -1578,6 +1605,7 @@ function itemCardHTML(it,showOwner,groupOwner){
   const pc=PRIO_COLOR[it.priority]||PRIO_COLOR["보통"];
   chips+='<span class="chip prio-sig" style="background:'+pc.bg+';color:'+pc.fg+'">'+pc.dot+" "+esc(it.priority)+"</span>";
   if(it.assignedBy)chips+='<span class="chip assigned">📌 '+esc(it.assignedBy)+" 지시</span>";
+  if(it.needDiscuss==="1")chips+='<span class="chip discuss">📋 보고·협의'+(it.discussDate?" "+it.discussDate.slice(5).replace("-","."):"")+"</span>";
   if(groupOwner&&ownersOf(it).length>1)chips+='<span class="chip" style="background:var(--surface-card);color:var(--body-c)">'+(primaryOwner(it)===groupOwner?"주담당":"공동")+"</span>";
   if(it.chain)chips+='<span class="chip chain">🔗 '+esc(it.chain)+(it.step?" · "+esc(it.step)+"단계":"")+"</span>";
   if((it.comments||[]).length)chips+='<span class="chip cmt">💬 '+it.comments.length+"</span>";
@@ -1615,7 +1643,12 @@ function itemCardHTML(it,showOwner,groupOwner){
       '<label class="fld">분류<input data-field="category" data-id="'+it.id+'" list="cat-list-'+it.part+'" value="'+esc(it.category)+'"></label>'+
       '<label class="fld">프로젝트(연결)<input data-field="chain" data-id="'+it.id+'" list="chain-list" value="'+esc(it.chain||"")+'" placeholder="예: 근태솔루션 도입"'+(Number(srvVersion)>=6||mode!=="shared"?"":' title="저장하려면 서버 코드 v6 재배포 필요"')+"></label>"+
       '<label class="fld">단계<input type="number" min="1" max="99" data-field="step" data-id="'+it.id+'" value="'+esc(it.step||"")+'" placeholder="순번"></label>'+
+      '<label class="fld">협의 희망일<input type="date" data-field="discussDate" data-id="'+it.id+'" value="'+esc(it.discussDate||"")+'" title="팀장 보고·팀 협의를 하고 싶은 날짜"></label>'+
       "</div>"+
+      '<label class="fld block" style="margin-top:10px;flex-direction:row;align-items:center;gap:8px;cursor:pointer">'+
+      '<input type="checkbox" data-field="needDiscuss" data-id="'+it.id+'"'+(it.needDiscuss==="1"?" checked":"")+' style="width:17px;height:17px;accent-color:var(--primary)">'+
+      '<span style="font-weight:600;color:var(--ink)">📋 보고·협의 필요</span>'+
+      '<span style="font-weight:400;color:var(--muted);font-size:12.5px">— 체크하면 [보고·협의] 탭에 모여, 마감일·협의 희망일과 함께 관리됩니다</span></label>'+
       '<div class="fld block" style="margin-top:10px">공동 담당 <span style="font-weight:400;color:var(--muted)">— 함께 진행하는 팀원을 클릭 (주담당 외 최대 2~3명 권장)</span>'+
       '<div class="co-row">'+memberNames().filter(m=>m!==primaryOwner(it)).map(m=>
         '<button class="co-chip'+(hasOwner(it,m)?" on":"")+'" data-action="co-toggle" data-id="'+it.id+'" data-val="'+esc(m)+'">'+esc(m)+"</button>").join("")+"</div></div>";
@@ -2220,6 +2253,7 @@ function renderGuide(){
   +'<div class="guide-rule">✅ 다른 사람이 방금 입력한 내용은 상단 <span class="g-kbd">↻</span> 새로고침으로 받아옵니다 (탭 복귀 시 자동 갱신).</div>'
   +'<div class="guide-rule">✅ 팀장님은 앱 없이 <b>구글 시트를 직접 열어도</b> 전체 업무가 표로 정리되어 보입니다. 연말 정리는 [엑셀(CSV)] 다운로드.</div>'
   +'<div class="guide-rule">🔔 상단 벨 버튼에서 <b>알림</b>을 확인하세요 — 내 업무에 코멘트가 달리거나, 새 업무가 배정되거나, 코멘트에 내 이름이 언급되면 표시됩니다. [브라우저 알림 켜기]를 누르면 페이지가 열려 있는 동안 화면 알림도 받습니다.</div>'
+  +'<div class="guide-rule">📋 <b>보고·협의 필요</b>: 업무 상세에서 체크하고 협의 희망일을 넣으면 [보고·협의] 탭에 모여, 팀장 보고·팀 토의가 필요한 건을 마감일·협의일과 함께 관리할 수 있습니다.</div>'
   +'<div class="guide-rule">📌 <b>업무 지정</b>(팀장 전용): 팀장으로 로그인하면 [업무 지정] 탭이 생깁니다. 팀원에게 업무를 지정하면 그 담당자 화면에 주황색으로 강조되고 알림이 갑니다.</div>'
   +'<div class="guide-rule">👤 <b>내 업무만</b> 버튼을 켜면 내가 주담당이거나 공동 담당인 업무만 표시되고, 이 설정은 다음 접속에도 유지됩니다.</div>'
   +'<div class="guide-rule">👥 <b>공동 담당</b>: 업무 [상세 ▼]에서 함께 진행할 팀원을 클릭하면 담당자가 여러 명이 됩니다. 모두의 화면·현황·알림에 잡히며, 첫 번째가 주담당입니다.</div>'
@@ -2307,6 +2341,63 @@ function doAssign(){
 }
 
 /* ── 일괄 관리: 다중 선택 삭제·수정 ── */
+/* ── 보고·협의 필요 과제 모아보기 ── */
+function discussList(){
+  const out=[];
+  allItems().forEach(({wk,it})=>{
+    if(isEv(it))return;
+    if(it.needDiscuss!=="1")return;
+    if(["done","cancelled"].includes(it.status))return;
+    out.push({wk,it});
+  });
+  // 정렬: 협의 희망일(없으면 마감일) 빠른 순 → 우선순위
+  const keyOf=(r)=>r.it.discussDate||r.it.dueDate||"9999-99-99";
+  out.sort((a,b)=>keyOf(a).localeCompare(keyOf(b))||(PRIO_SORT[a.it.priority]??9)-(PRIO_SORT[b.it.priority]??9));
+  return out;
+}
+function discussRow(it,wk){
+  const today=todayKey();
+  const dOver=it.discussDate&&it.discussDate<today;
+  const dueOver=it.dueDate&&it.dueDate<today&&!["done","cancelled"].includes(it.status);
+  const pc=PRIO_COLOR[it.priority]||PRIO_COLOR["보통"];
+  let dates="";
+  dates+='<span class="dc-date'+(dOver?" over":"")+'">🗣 협의 '+(it.discussDate?it.discussDate.slice(5).replace("-",".")+(dOver?" 지남":""):"미정")+"</span>";
+  dates+='<span class="dc-date'+(dueOver?" over":"")+'">⏰ 마감 '+(it.dueDate?it.dueDate.slice(5).replace("-",".")+(dueOver?" 초과":""):"미정")+"</span>";
+  return '<div class="dc-item" data-action="jump" data-id="'+it.id+'" data-val="'+wk+'" style="--prio-bar:'+pc.bar+'">'+
+    '<div class="dc-main">'+
+    '<div class="dc-text">'+esc(it.text)+'<span class="chip prio-sig" style="background:'+pc.bg+';color:'+pc.fg+';margin-left:8px">'+pc.dot+" "+esc(it.priority)+"</span></div>"+
+    '<div class="dc-meta">'+ownersOf(it).map(n=>esc(n)).join(", ")+" · "+esc(it.part||"인사")+" · "+esc(it.category)+" · "+STATUS[it.status].label+"</div>"+
+    (it.detail?'<div class="dc-detail">'+esc(it.detail)+"</div>":"")+
+    "</div>"+
+    '<div class="dc-right"><div class="dc-dates">'+dates+'</div><span class="dd-open">열기 ›</span></div></div>';
+}
+function renderDiscuss(){
+  const me=state.me;
+  const all=discussList();
+  const mine=all.filter(r=>hasOwner(r.it,me));
+  const others=all.filter(r=>!hasOwner(r.it,me));
+  const today=todayKey();
+  const soon=all.filter(r=>{const k=r.it.discussDate||r.it.dueDate;return k&&k>=today&&k<=fmtKey(addDays(new Date(today+"T00:00:00"),7));});
+
+  let html='<div class="card" style="margin-top:0"><div class="card-title">📋 보고·협의가 필요한 과제</div>'+
+    '<div style="font-size:13px;color:var(--muted);margin:-6px 0 4px;line-height:1.6">각 업무의 [상세 ▼]에서 <b>"📋 보고·협의 필요"</b>를 체크하고 <b>협의 희망일</b>을 넣으면 여기에 모입니다. 팀장 보고·팀 토의가 필요한 건을 마감일·협의 희망일과 함께 한눈에 관리하세요.</div>'+
+    '<div class="dc-stat"><span>전체 <b>'+all.length+'</b>건</span><span>내 담당 <b>'+mine.length+'</b>건</span><span>이번 주 협의/마감 <b class="'+(soon.length?"hot":"")+'">'+soon.length+'</b>건</span></div></div>';
+
+  if(!all.length){
+    html+='<div class="empty">보고·협의로 표시된 과제가 없습니다. 업무 상세에서 "📋 보고·협의 필요"를 체크해 추가하세요.</div>';
+    return html;
+  }
+  if(mine.length){
+    html+='<div class="card"><div class="card-title" style="font-size:15px">🙋 내 담당 ('+mine.length+')</div>'+
+      mine.map(r=>discussRow(r.it,r.wk)).join("")+"</div>";
+  }
+  if(others.length){
+    html+='<div class="card"><div class="card-title" style="font-size:15px">👥 팀 ('+others.length+')</div>'+
+      others.map(r=>discussRow(r.it,r.wk)).join("")+"</div>";
+  }
+  return html;
+}
+
 function mgrList(){
   const out=[];
   Object.keys(state.weeks).sort().reverse().forEach(wk=>{
@@ -2484,7 +2575,7 @@ function makeItem(weekKey,part,owner,cat,text,extra){
   return Object.assign({
     id:uid(),taskNo:nextTaskNo(weekKey),part,owner,category:cat,text,
     detail:"",dueDate:"",priority:"보통",status:"planned",result:"",carryReason:"",
-    carriedFrom:null,history:[],comments:[],createdAt:todayKey(),updatedAt:todayKey(),isEvent:"",chain:"",step:"",assignedBy:""
+    carriedFrom:null,history:[],comments:[],createdAt:todayKey(),updatedAt:todayKey(),isEvent:"",chain:"",step:"",assignedBy:"",needDiscuss:"",discussDate:""
   },extra||{});
 }
 function addItemFromInputs(){
@@ -2835,9 +2926,14 @@ document.addEventListener("change",(ev)=>{
       }
       return;
     }
+    if(el.dataset.field==="needDiscuss"){
+      patchItem(el.dataset.id,{needDiscuss:el.checked?"1":""});
+      render();
+      return;
+    }
     const patch={};patch[el.dataset.field]=el.value;
     patchItem(el.dataset.id,patch);
-    if(["status","priority","owner","carryReason","text","dueDate","part","category","chain","step"].includes(el.dataset.field))render();
+    if(["status","priority","owner","carryReason","text","dueDate","part","category","chain","step","discussDate"].includes(el.dataset.field))render();
     return;
   }
   const a=el.dataset?el.dataset.action:null;
@@ -2962,6 +3058,7 @@ setInterval(async ()=>{
     ui.view="setup"; render();
   }
 })();
+
 
 
 

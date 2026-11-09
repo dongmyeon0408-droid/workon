@@ -781,6 +781,20 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
     .dc-b.mini{width:100%}
   }
 
+
+  /* ═══ v29: 보고 유형·참석자 ═══ */
+  .mt-seg{display:inline-flex; gap:4px; background:var(--surface-soft); border-radius:9999px; padding:4px; margin-top:6px}
+  .mt-seg.sm{margin-top:0}
+  .mt-b{padding:6px 14px; font-size:12.5px; font-weight:600; background:transparent; border:none; border-radius:9999px; color:var(--muted); white-space:nowrap; cursor:pointer}
+  .mt-b.on{background:var(--canvas); color:var(--ink); box-shadow:var(--shadow-sm)}
+  .mt-badge{font-size:11px; font-weight:700; padding:2px 9px; border-radius:9999px; margin-right:7px; background:var(--surface-card); color:var(--body-c); vertical-align:middle; white-space:nowrap}
+  .mt-badge.team{background:#dbeafe; color:#1d4ed8}
+  .dc-meet{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px dashed var(--hairline)}
+  .dc-meet-lb,.dc-att-lb{font-size:11.5px; font-weight:600; color:var(--muted)}
+  .dc-att{display:flex; gap:5px; flex-wrap:wrap}
+  .co-chip.sm{padding:5px 11px; font-size:12px}
+  @media(max-width:768px){.dc-meet{gap:6px}}
+
 </style>
 </head>
 <body>
@@ -798,6 +812,7 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkf
 </div>
 <div id="modal-root"></div>
 <script>
+
 
 
 
@@ -861,6 +876,7 @@ const PRIO_COLOR={"긴급":{bar:"#dc2626",fg:"#b91c1c",bg:"#fee2e2",dot:"🔴"},
 const CARRY_REASONS=["일정 미확정","유관 부서 회신 대기","우선순위 변경","자료 부족","담당자 부재","긴급업무 발생","업무 범위 변경","기타"];
 const DISCUSS_SLOTS=["","오전","오후","09:00","10:00","11:00","13:00","14:00","15:00","16:00","17:00"];
 const DISCUSS_STATUS=["요청","확정","완료","연기"];
+const MEET_TYPES=["1:1 보고","팀 회의"];
 const DSTAT_COLOR={"요청":{bg:"#ede9fe",fg:"#6d28d9"},"확정":{bg:"#dbeafe",fg:"#1d4ed8"},"완료":{bg:"#111111",fg:"#ffffff"},"연기":{bg:"#fee2e2",fg:"#b91c1c"}};
 const PARTS=["인사","전산"];
 const MEMBER_PARTS=["인사","전산","팀"];
@@ -916,6 +932,7 @@ const ui={
 
 const memberNames=()=>state.members.map(m=>m.name);
 function ownersOf(it){return String(it.owner||"").split(",").map(s=>s.trim()).filter(Boolean);}
+function attendeesOf(it){return String(it.attendees||"").split(",").map(s=>s.trim()).filter(Boolean);}
 function primaryOwner(it){return ownersOf(it)[0]||"";}
 function hasOwner(it,name){return ownersOf(it).includes(name);}
 function isLeader(name){const m=state&&state.members.find(x=>x.name===(name||state.me));return m&&m.role==="팀장";}
@@ -975,6 +992,7 @@ function normalizeState(s){
     it.chain=it.chain||"";it.step=it.step||"";it.assignedBy=it.assignedBy||"";
     it.needDiscuss=(it.needDiscuss==="1"||it.needDiscuss===1||it.needDiscuss===true)?"1":"";it.discussDate=normDateOnly(it.discussDate);
     it.discussSlot=it.discussSlot||"";it.confirmDate=normDateOnly(it.confirmDate);it.confirmSlot=it.confirmSlot||"";it.discussStatus=it.discussStatus||(it.needDiscuss==="1"?"요청":"");
+    it.meetType=it.meetType||(it.needDiscuss==="1"?"1:1 보고":"");it.attendees=it.attendees||"";
     it.owner=ownersOf(it).join(", ")||it.owner;
     if(it.isEvent==null)it.isEvent="";
     it.history=it.history||[];it.comments=it.comments||[];
@@ -1603,7 +1621,7 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v28</span>';
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v29</span>';
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["discuss","보고·협의"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   if(isLeader())tabs.splice(1,0,["assign","업무 지정"]);
@@ -1675,7 +1693,8 @@ function itemCardHTML(it,showOwner,groupOwner){
   if(it.needDiscuss==="1"){
     const _ds=it.discussStatus||"요청";
     const _dc=it.confirmDate?it.confirmDate.slice(5).replace("-","."):(it.discussDate?it.discussDate.slice(5).replace("-","."):"");
-    chips+='<span class="chip discuss'+(_ds==="완료"?" done":"")+'">📋 보고·협의 '+esc(_ds)+(_dc?" "+_dc:"")+(it.confirmSlot?" "+esc(it.confirmSlot):"")+"</span>";
+    const _mt=(it.meetType||"1:1 보고")==="팀 회의"?"👥":"🧑‍💼";
+    chips+='<span class="chip discuss'+(_ds==="완료"?" done":"")+'">'+_mt+' 보고·협의 '+esc(_ds)+(_dc?" "+_dc:"")+(it.confirmSlot?" "+esc(it.confirmSlot):"")+"</span>";
   }
   if(groupOwner&&ownersOf(it).length>1)chips+='<span class="chip" style="background:var(--surface-card);color:var(--body-c)">'+(primaryOwner(it)===groupOwner?"주담당":"공동")+"</span>";
   if(it.chain)chips+='<span class="chip chain">🔗 '+esc(it.chain)+(it.step?" · "+esc(it.step)+"단계":"")+"</span>";
@@ -1720,6 +1739,8 @@ function itemCardHTML(it,showOwner,groupOwner){
       '<input type="checkbox" data-field="needDiscuss" data-id="'+it.id+'"'+(it.needDiscuss==="1"?" checked":"")+' style="width:17px;height:17px;accent-color:var(--primary)">'+
       '<span style="font-weight:600;color:var(--ink)">📋 보고·협의 필요</span>'+
       '<span style="font-weight:400;color:var(--muted);font-size:12.5px">— 체크하면 [보고·협의] 탭에 모여, 마감일·협의 희망일과 함께 관리됩니다</span></label>'+
+      (it.needDiscuss==="1"?'<div class="fld block" style="margin-top:10px">보고 유형 <span style="font-weight:400;color:var(--muted);font-size:12.5px">— 희망 유형을 제안하세요. 팀 회의 여부·참석자는 팀장이 [보고·협의] 탭에서 확정합니다</span>'+
+        '<div class="mt-seg">'+MEET_TYPES.map(function(t){return '<button class="mt-b'+((it.meetType||"1:1 보고")===t?" on":"")+'" data-action="meet-type" data-id="'+it.id+'" data-val="'+t+'">'+(t==="1:1 보고"?"🧑‍💼 ":"👥 ")+t+"</button>";}).join("")+"</div></div>":"")+
       '<div class="fld block" style="margin-top:10px">공동 담당 <span style="font-weight:400;color:var(--muted)">— 함께 진행하는 팀원을 클릭 (주담당 외 최대 2~3명 권장)</span>'+
       '<div class="co-row">'+memberNames().filter(m=>m!==primaryOwner(it)).map(m=>
         '<button class="co-chip'+(hasOwner(it,m)?" on":"")+'" data-action="co-toggle" data-id="'+it.id+'" data-val="'+esc(m)+'">'+esc(m)+"</button>").join("")+"</div></div>";
@@ -2444,30 +2465,43 @@ function discussRow(it,wk){
   const cOver=it.confirmDate&&it.confirmDate<today&&st!=="완료";
   const propTxt=(it.discussDate?it.discussDate.slice(5).replace("-","."):"미정")+(it.discussSlot?" "+it.discussSlot:"");
   const confTxt=(it.confirmDate?it.confirmDate.slice(5).replace("-","."):"")+(it.confirmSlot?" "+it.confirmSlot:"");
+  const mt=it.meetType||"1:1 보고";
+  const isTeam=mt==="팀 회의";
+  const atts=attendeesOf(it);
 
   let h='<div class="dc-item'+(st==="완료"?" done":"")+'" style="--prio-bar:'+pc.bar+'">';
-  // 상단: 상태 배지 + 제목 + 메타 (클릭 시 해당 업무로 이동)
+  // 상단: 상태 + 유형 배지 + 제목 + 메타
   h+='<div class="dc-head" data-action="jump" data-id="'+it.id+'" data-val="'+wk+'" style="cursor:pointer">'+
-    '<div style="flex:1;min-width:0"><div class="dc-text">'+dstatusBadge(st)+esc(it.text)+'</div>'+
-    '<div class="dc-meta">'+ownersOf(it).map(n=>esc(n)).join(", ")+" · "+esc(it.part||"인사")+" · "+esc(it.category)+" · "+STATUS[it.status].label+
+    '<div style="flex:1;min-width:0"><div class="dc-text">'+dstatusBadge(st)+
+    '<span class="mt-badge'+(isTeam?" team":"")+'">'+(isTeam?"👥 팀 회의":"🧑‍💼 1:1 보고")+"</span>"+esc(it.text)+'</div>'+
+    '<div class="dc-meta">상신 '+esc(primaryOwner(it))+" · "+esc(it.part||"인사")+" · "+esc(it.category)+" · "+STATUS[it.status].label+
+    (isTeam&&atts.length?' · 참석 '+atts.map(esc).join("·"):"")+
     (it.detail?' · '+esc(it.detail):"")+"</div></div>"+
     (it.dueDate?'<span class="dc-due">⏰ 마감 '+it.dueDate.slice(5).replace("-",".")+"</span>":"")+"</div>";
 
-  // 제안(상신자) / 확정(팀장) 2단 박스
+  // 제안 → 확정 2단
   h+='<div class="dc-plan">'+
     '<div class="dc-slot req'+(dOver?" over":"")+'"><span class="dc-slot-lb">🗣 상신자 제안</span><b>'+propTxt+"</b></div>"+
     '<span class="dc-arrow">→</span>'+
     '<div class="dc-slot'+(it.confirmDate?" fixed":"")+(cOver?" over":"")+'"><span class="dc-slot-lb">✅ 팀장 확정</span><b>'+(confTxt||"미정")+"</b></div>"+
     "</div>";
 
-  // 컨트롤: 확정일/시간대(팀장) + 상태 버튼 + 제거
+  // 팀장 주관: 유형 전환 + (팀 회의면) 참석자 선택
+  h+='<div class="dc-meet"><span class="dc-meet-lb">주관</span>'+
+    '<div class="mt-seg sm">'+MEET_TYPES.map(function(t){return '<button class="mt-b'+(mt===t?" on":"")+'" data-action="meet-type" data-id="'+it.id+'" data-val="'+t+'">'+(t==="1:1 보고"?"🧑‍💼 1:1":"👥 팀 회의")+"</button>";}).join("")+"</div>";
+  if(isTeam){
+    h+='<span class="dc-att-lb">참석자</span><div class="dc-att">'+memberNames().map(function(m){return '<button class="co-chip sm'+(atts.includes(m)?" on":"")+'" data-action="attend-toggle" data-id="'+it.id+'" data-val="'+esc(m)+'">'+esc(m)+"</button>";}).join("")+"</div>";
+  }
+  h+="</div>";
+
+  // 일정 확정 + 상태 컨트롤
   h+='<div class="dc-ctrl">'+
     '<label class="dc-cf">확정일<input type="date" data-field="confirmDate" data-id="'+it.id+'" value="'+esc(it.confirmDate||"")+'"></label>'+
     '<label class="dc-cf">확정시간<select data-field="confirmSlot" data-id="'+it.id+'">'+
       DISCUSS_SLOTS.map(s=>'<option value="'+s+'"'+(it.confirmSlot===s?" selected":"")+'>'+(s||"미정")+"</option>").join("")+"</select></label>"+
-    '<button class="dc-b mini" data-action="dc-adopt" data-id="'+it.id+'" title="상신자가 제안한 희망일·시각을 확정으로 그대로 반영">제안대로 확정</button>'+
+    '<button class="dc-b mini" data-action="dc-adopt" data-id="'+it.id+'" title="상신자가 제안한 희망일·시각을 그대로 확정">제안대로 확정</button>'+
     '<div class="dc-btns">'+
-    (st!=="완료"?'<button class="dc-b done" data-action="dc-status" data-id="'+it.id+'" data-val="완료">보고 완료</button>':'<button class="dc-b" data-action="dc-status" data-id="'+it.id+'" data-val="확정">완료 취소</button>')+
+    (st!=="완료"?'<button class="dc-b done" data-action="dc-status" data-id="'+it.id+'" data-val="완료">'+(isTeam?"회의 완료":"보고 완료")+'</button>':'<button class="dc-b" data-action="dc-status" data-id="'+it.id+'" data-val="확정">완료 취소</button>')+
     (st!=="연기"?'<button class="dc-b defer" data-action="dc-status" data-id="'+it.id+'" data-val="연기">연기</button>':'<button class="dc-b" data-action="dc-status" data-id="'+it.id+'" data-val="확정">연기 취소</button>')+
     '<button class="dc-b remove" data-action="dc-remove" data-id="'+it.id+'">제거</button>'+
     "</div></div>";
@@ -2479,31 +2513,34 @@ function renderDiscuss(){
   const all=discussList();
   const active=all.filter(r=>(r.it.discussStatus||"요청")!=="완료");
   const doneList=all.filter(r=>(r.it.discussStatus||"요청")==="완료");
-  const mine=active.filter(r=>hasOwner(r.it,me));
-  const others=active.filter(r=>!hasOwner(r.it,me));
   const today=todayKey();
   const soon=active.filter(r=>{const k=r.it.confirmDate||r.it.discussDate||r.it.dueDate;return k&&k>=today&&k<=fmtKey(addDays(new Date(today+"T00:00:00"),7));});
+  const mineN=active.filter(r=>hasOwner(r.it,me)).length;
+  const oneOnOne=active.filter(r=>(r.it.meetType||"1:1 보고")!=="팀 회의");
+  const teamMtg=active.filter(r=>(r.it.meetType||"1:1 보고")==="팀 회의");
 
   let html='<div class="card" style="margin-top:0"><div class="card-title">📋 보고·협의가 필요한 과제</div>'+
-    '<div style="font-size:13px;color:var(--muted);margin:-6px 0 4px;line-height:1.6">업무 [상세 ▼]에서 <b>"📋 보고·협의 필요"</b> 체크 + <b>협의 희망일</b>을 넣으면 여기에 모입니다. '+
-    '팀장님은 <b>확정일·시간대</b>를 지정하고, 상신자·팀장 모두 <b>확정/완료/연기/제거</b>를 할 수 있습니다.</div>'+
-    '<div class="dc-stat"><span>진행 <b>'+active.length+'</b>건</span><span>내 담당 <b>'+mine.length+'</b>건</span>'+
-    '<span>7일내 <b class="'+(soon.length?"hot":"")+'">'+soon.length+'</b>건</span><span>완료 <b>'+doneList.length+'</b>건</span></div></div>';
+    '<div style="font-size:13px;color:var(--muted);margin:-6px 0 4px;line-height:1.6">담당자가 업무 [상세 ▼]에서 <b>"📋 보고·협의 필요"</b>를 체크하고 <b>희망일·시각</b>을 제안하면 여기에 모입니다. '+
+    '팀장님은 <b>1:1 보고 ↔ 팀 회의</b>로 주관을 정하고(팀 회의는 참석자 지정), <b>일정을 확정</b>한 뒤 완료 처리하시면 됩니다.</div>'+
+    '<div class="dc-stat"><span>진행 <b>'+active.length+'</b>건</span><span>🧑‍💼 1:1 <b>'+oneOnOne.length+'</b></span><span>👥 회의 <b>'+teamMtg.length+'</b></span>'+
+    '<span>내 담당 <b>'+mineN+'</b></span><span>7일내 <b class="'+(soon.length?"hot":"")+'">'+soon.length+'</b></span><span>완료 <b>'+doneList.length+'</b></span></div></div>';
 
   if(!all.length){
     html+='<div class="empty">보고·협의로 표시된 과제가 없습니다. 업무 상세에서 "📋 보고·협의 필요"를 체크해 추가하세요.</div>';
     return html;
   }
-  if(mine.length){
-    html+='<div class="card"><div class="card-title" style="font-size:15px">🙋 내 담당 ('+mine.length+')</div>'+
-      mine.map(r=>discussRow(r.it,r.wk)).join("")+"</div>";
+  // 정렬: 내 담당 먼저, 그 다음 날짜순(이미 discussList에서 날짜순)
+  const sortMine=(arr)=>arr.slice().sort((a,b)=>(hasOwner(b.it,me)?0:1)-(hasOwner(a.it,me)?0:1));
+  if(oneOnOne.length){
+    html+='<div class="card"><div class="card-title" style="font-size:15px">🧑‍💼 1:1 보고 ('+oneOnOne.length+')</div>'+
+      sortMine(oneOnOne).map(r=>discussRow(r.it,r.wk)).join("")+"</div>";
   }
-  if(others.length){
-    html+='<div class="card"><div class="card-title" style="font-size:15px">👥 팀 ('+others.length+')</div>'+
-      others.map(r=>discussRow(r.it,r.wk)).join("")+"</div>";
+  if(teamMtg.length){
+    html+='<div class="card" style="border-color:#bfdbfe"><div class="card-title" style="font-size:15px;color:#1d4ed8">👥 팀 회의 ('+teamMtg.length+')</div>'+
+      sortMine(teamMtg).map(r=>discussRow(r.it,r.wk)).join("")+"</div>";
   }
   if(doneList.length){
-    html+='<div class="card"><div class="card-title" style="font-size:15px;color:var(--muted)">✓ 보고 완료 ('+doneList.length+')</div>'+
+    html+='<div class="card"><div class="card-title" style="font-size:15px;color:var(--muted)">✓ 완료 ('+doneList.length+')</div>'+
       doneList.map(r=>discussRow(r.it,r.wk)).join("")+"</div>";
   }
   return html;
@@ -2685,7 +2722,7 @@ function makeItem(weekKey,part,owner,cat,text,extra){
   return Object.assign({
     id:uid(),taskNo:nextTaskNo(weekKey),part,owner,category:cat,text,
     detail:"",dueDate:"",priority:"보통",status:"planned",result:"",carryReason:"",
-    carriedFrom:null,history:[],comments:[],createdAt:todayKey(),updatedAt:todayKey(),isEvent:"",chain:"",step:"",assignedBy:"",needDiscuss:"",discussDate:"",discussSlot:"",confirmDate:"",confirmSlot:"",discussStatus:""
+    carriedFrom:null,history:[],comments:[],createdAt:todayKey(),updatedAt:todayKey(),isEvent:"",chain:"",step:"",assignedBy:"",needDiscuss:"",discussDate:"",discussSlot:"",confirmDate:"",confirmSlot:"",discussStatus:"",meetType:"",attendees:""
   },extra||{});
 }
 function addItemFromInputs(){
@@ -2813,6 +2850,18 @@ document.addEventListener("click",async (ev)=>{
       const patch={discussStatus:val};
       if(val==="완료"){patch.result=f.it.result||("보고 완료 ("+todayKey()+")");}
       patchItem(id,patch); render(); break;
+    }
+    case "meet-type": {
+      const f=findItem(id); if(!f)break;
+      const patch={meetType:val};
+      if(val!=="팀 회의")patch.attendees="";   // 1:1로 되돌리면 참석자 비움
+      patchItem(id,patch); render(); break;
+    }
+    case "attend-toggle": {
+      const f=findItem(id); if(!f)break;
+      let a=attendeesOf(f.it);
+      if(a.includes(val))a=a.filter(n=>n!==val); else a.push(val);
+      patchItem(id,{attendees:a.join(", ")}); render(); break;
     }
     case "dc-adopt": {
       const f=findItem(id); if(!f)break;
@@ -3069,7 +3118,7 @@ document.addEventListener("change",(ev)=>{
     }
     const patch={};patch[el.dataset.field]=el.value;
     patchItem(el.dataset.id,patch);
-    if(["status","priority","owner","carryReason","text","dueDate","part","category","chain","step","discussDate","discussSlot","confirmDate","confirmSlot","discussStatus"].includes(el.dataset.field))render();
+    if(["status","priority","owner","carryReason","text","dueDate","part","category","chain","step","discussDate","discussSlot","confirmDate","confirmSlot","discussStatus","meetType","attendees"].includes(el.dataset.field))render();
     return;
   }
   const a=el.dataset?el.dataset.action:null;
@@ -3194,6 +3243,7 @@ setInterval(async ()=>{
     ui.view="setup"; render();
   }
 })();
+
 
 
 

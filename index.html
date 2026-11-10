@@ -208,9 +208,15 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycbzJMpVfT86W8mPohR
   .rt-btn:hover{background:#EEF2F8}
   .rt-btn:active{background:#E2E8F2}
   .rt-sep{width:1px; height:18px; background:#D7DDE8; margin:0 4px}
-  .rt-edit{min-height:84px; padding:10px 12px; font-size:14px; line-height:1.75; color:var(--ink); outline:none; word-break:break-word}
-  .rt-edit:empty:before{content:attr(data-ph); color:#9aa3b2}
+  .rt-edit{min-height:84px; padding:10px 12px; font-size:14px; line-height:1.75; color:#111827; -webkit-text-fill-color:#111827; caret-color:#111827; outline:none; word-break:break-word}
+  .rt-edit, .rt-edit *{color:#111827; -webkit-text-fill-color:#111827}
+  .rt-edit:empty:before{content:attr(data-ph); color:#9aa3b2; -webkit-text-fill-color:#9aa3b2}
   .rt-edit:focus{box-shadow:inset 0 0 0 2px rgba(59,130,246,.15)}
+  /* 한글 조합중/선택 글자가 흰색으로 사라지는 현상 방지 */
+  .rt-edit::selection{background:#cfe0ff; color:#111827; -webkit-text-fill-color:#111827}
+  .rt-edit *::selection{background:#cfe0ff; color:#111827; -webkit-text-fill-color:#111827}
+  .rt-check[data-done="1"] .rt-ct, .rt-check[data-done="1"] .rt-ct *{color:var(--muted); -webkit-text-fill-color:var(--muted)}
+  .rt-edit .rt-box, .rt-edit .rt-box:before{color:#fff; -webkit-text-fill-color:#fff}  /* 체크 ✓ 흰색 유지 */
   .rt-check{display:flex; align-items:flex-start; gap:8px; margin:3px 0}
   .rt-box{flex:none; width:18px; height:18px; margin-top:3px; border:1.5px solid #9aa3b2; border-radius:4px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:#fff; user-select:none}
   .rt-check[data-done="1"] .rt-box{background:#111827; border-color:#111827}
@@ -1706,7 +1712,7 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v35</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v36</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["discuss","보고·협의"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   if(isLeader())tabs.splice(1,0,["assign","업무 지정"]);

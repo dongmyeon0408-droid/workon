@@ -64,7 +64,8 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycbzJMpVfT86W8mPohR
   .save-badge.ok{color:var(--success)} .save-badge.err{color:var(--error)}
 
   /* ═══ 탭 — nav-pill-group (시그니처 필-인-필) ═══ */
-  .tabs{display:flex; gap:12px; align-items:center; margin-bottom:32px; flex-wrap:wrap}
+  .tabs{display:flex; gap:12px; align-items:center; margin-bottom:32px; flex-wrap:wrap;
+    position:sticky; top:0; z-index:40; background:var(--page); padding:10px 0 11px; box-shadow:0 1px 0 var(--hairline), 0 6px 10px -8px rgba(0,0,0,.12)}
   .pill-group{display:inline-flex; background:#e2e6eb; border-radius:9999px; padding:5px; gap:2px; flex-wrap:wrap}
   .tab{
     padding:8px 16px; font-size:14px; font-weight:500; background:transparent;
@@ -841,9 +842,14 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycbzJMpVfT86W8mPohR
   .mt-seg{display:inline-flex; gap:4px; background:var(--surface-soft); border-radius:9999px; padding:4px; margin-top:6px}
   .mt-seg.sm{margin-top:0}
   .mt-b{padding:6px 14px; font-size:12.5px; font-weight:600; background:transparent; border:none; border-radius:9999px; color:var(--muted); white-space:nowrap; cursor:pointer}
-  .mt-b.on{background:var(--canvas); color:var(--ink); box-shadow:var(--shadow-sm)}
-  .mt-badge{font-size:11px; font-weight:700; padding:2px 9px; border-radius:9999px; margin-right:7px; background:var(--surface-card); color:var(--body-c); vertical-align:middle; white-space:nowrap}
-  .mt-badge.team{background:#dbeafe; color:#1d4ed8}
+  .mt-b.on{background:var(--canvas); color:#15803d; box-shadow:var(--shadow-sm)}
+  .mt-b.team.on{color:#9a3412}
+  .mt-badge{font-size:11px; font-weight:700; padding:3px 10px; border-radius:9999px; margin-right:7px; background:#dcfce7; color:#15803d; vertical-align:middle; white-space:nowrap; border:1px solid #bbf7d0}
+  .mt-badge.team{background:#ffedd5; color:#9a3412; border-color:#fed7aa}
+  .dc-fixed{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:10px; padding-top:11px; border-top:1px dashed var(--hairline)}
+  .dc-fixed-main{font-size:13.5px; color:var(--ink)}
+  .dc-fixed-main b{color:#1d4ed8; font-size:15px}
+  .dc-fixed-att{font-size:12px; color:var(--muted)}
   .dc-meet{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px dashed var(--hairline)}
   .dc-meet-lb,.dc-att-lb{font-size:11.5px; font-weight:600; color:var(--muted)}
   .dc-att{display:flex; gap:5px; flex-wrap:wrap}
@@ -1803,7 +1809,7 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v41</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v42</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["dash","팀 현황"],["discuss","보고·협의"],["people","담당자"],["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   if(isLeader())tabs.splice(1,0,["assign","업무 지정"]);
@@ -2747,25 +2753,40 @@ function discussRow(it,wk){
     '<div class="dc-slot'+(it.confirmDate?" fixed":"")+(cOver?" over":"")+'"><span class="dc-slot-lb">✅ 팀장 확정</span><b>'+(confTxt||"미정")+"</b></div>"+
     "</div>";
 
-  // 팀장 주관: 유형 전환 + (팀 회의면) 참석자 선택
-  h+='<div class="dc-meet"><span class="dc-meet-lb">주관</span>'+
-    '<div class="mt-seg sm">'+MEET_TYPES.map(function(t){return '<button class="mt-b'+(mt===t?" on":"")+'" data-action="meet-type" data-id="'+it.id+'" data-val="'+t+'">'+(t==="1:1 보고"?"🧑‍💼 1:1":"👥 팀 회의")+"</button>";}).join("")+"</div>";
-  if(isTeam){
-    h+='<span class="dc-att-lb">참석자</span><div class="dc-att">'+memberNames().map(function(m){return '<button class="co-chip sm'+(atts.includes(m)?" on":"")+'" data-action="attend-toggle" data-id="'+it.id+'" data-val="'+esc(m)+'">'+esc(m)+"</button>";}).join("")+"</div>";
+  // 확정(또는 완료)되면 컨트롤을 접어 요약만, [수정 ▾]으로 펼침
+  const confirmed=(st==="확정"||st==="완료");
+  const editing=!confirmed || (ui.dcEdit&&ui.dcEdit[it.id]);
+  if(editing){
+    // 팀장 주관: 유형 전환 + (팀 회의면) 참석자 선택
+    h+='<div class="dc-meet"><span class="dc-meet-lb">주관</span>'+
+      '<div class="mt-seg sm">'+MEET_TYPES.map(function(t){return '<button class="mt-b'+(t==="팀 회의"?" team":"")+(mt===t?" on":"")+'" data-action="meet-type" data-id="'+it.id+'" data-val="'+t+'">'+(t==="1:1 보고"?"🧑‍💼 1:1 보고":"👥 팀 회의")+"</button>";}).join("")+"</div>";
+    if(isTeam){
+      h+='<span class="dc-att-lb">참석자</span><div class="dc-att">'+memberNames().map(function(m){return '<button class="co-chip sm'+(atts.includes(m)?" on":"")+'" data-action="attend-toggle" data-id="'+it.id+'" data-val="'+esc(m)+'">'+esc(m)+"</button>";}).join("")+"</div>";
+    }
+    h+="</div>";
+    // 일정 확정 + 상태 컨트롤
+    h+='<div class="dc-ctrl">'+
+      '<label class="dc-cf">확정일<input type="date" data-field="confirmDate" data-id="'+it.id+'" value="'+esc(it.confirmDate||"")+'"></label>'+
+      '<label class="dc-cf">확정시간<select data-field="confirmSlot" data-id="'+it.id+'">'+
+        DISCUSS_SLOTS.map(s=>'<option value="'+s+'"'+(it.confirmSlot===s?" selected":"")+'>'+(s||"미정")+"</option>").join("")+"</select></label>"+
+      '<button class="dc-b mini" data-action="dc-adopt" data-id="'+it.id+'" title="상신자가 제안한 희망일·시각을 그대로 확정">제안대로 확정</button>'+
+      '<div class="dc-btns">'+
+      (st!=="완료"?'<button class="dc-b done" data-action="dc-status" data-id="'+it.id+'" data-val="완료">'+(isTeam?"회의 완료":"보고 완료")+'</button>':'<button class="dc-b" data-action="dc-status" data-id="'+it.id+'" data-val="확정">완료 취소</button>')+
+      (st!=="연기"?'<button class="dc-b defer" data-action="dc-status" data-id="'+it.id+'" data-val="연기">연기</button>':'<button class="dc-b" data-action="dc-status" data-id="'+it.id+'" data-val="확정">연기 취소</button>')+
+      '<button class="dc-b remove" data-action="dc-remove" data-id="'+it.id+'">제거</button>'+
+      (confirmed?'<button class="dc-b mini" data-action="dc-edit" data-id="'+it.id+'">▴ 접기</button>':"")+
+      "</div></div>";
+  }else{
+    // 접힌 요약: 확정 일정 + 유형 + (참석자) + 완료/수정
+    h+='<div class="dc-fixed">'+
+      '<span class="dc-fixed-main">✅ 확정 <b>'+(confTxt||"미정")+"</b></span>"+
+      '<span class="mt-badge'+(isTeam?" team":"")+'">'+(isTeam?"👥 팀 회의":"🧑‍💼 1:1 보고")+"</span>"+
+      (isTeam&&atts.length?'<span class="dc-fixed-att">참석 '+atts.map(esc).join("·")+"</span>":"")+
+      '<div class="dc-btns" style="margin-left:auto">'+
+      (st!=="완료"?'<button class="dc-b done" data-action="dc-status" data-id="'+it.id+'" data-val="완료">'+(isTeam?"회의 완료":"보고 완료")+'</button>':'<button class="dc-b" data-action="dc-status" data-id="'+it.id+'" data-val="확정">완료 취소</button>')+
+      '<button class="dc-b mini" data-action="dc-edit" data-id="'+it.id+'">수정 ▾</button>'+
+      "</div></div>";
   }
-  h+="</div>";
-
-  // 일정 확정 + 상태 컨트롤
-  h+='<div class="dc-ctrl">'+
-    '<label class="dc-cf">확정일<input type="date" data-field="confirmDate" data-id="'+it.id+'" value="'+esc(it.confirmDate||"")+'"></label>'+
-    '<label class="dc-cf">확정시간<select data-field="confirmSlot" data-id="'+it.id+'">'+
-      DISCUSS_SLOTS.map(s=>'<option value="'+s+'"'+(it.confirmSlot===s?" selected":"")+'>'+(s||"미정")+"</option>").join("")+"</select></label>"+
-    '<button class="dc-b mini" data-action="dc-adopt" data-id="'+it.id+'" title="상신자가 제안한 희망일·시각을 그대로 확정">제안대로 확정</button>'+
-    '<div class="dc-btns">'+
-    (st!=="완료"?'<button class="dc-b done" data-action="dc-status" data-id="'+it.id+'" data-val="완료">'+(isTeam?"회의 완료":"보고 완료")+'</button>':'<button class="dc-b" data-action="dc-status" data-id="'+it.id+'" data-val="확정">완료 취소</button>')+
-    (st!=="연기"?'<button class="dc-b defer" data-action="dc-status" data-id="'+it.id+'" data-val="연기">연기</button>':'<button class="dc-b" data-action="dc-status" data-id="'+it.id+'" data-val="확정">연기 취소</button>')+
-    '<button class="dc-b remove" data-action="dc-remove" data-id="'+it.id+'">제거</button>'+
-    "</div></div>";
   h+="</div>";
   return h;
 }
@@ -3118,6 +3139,7 @@ document.addEventListener("click",async (ev)=>{
       if(val==="완료"){patch.result=f.it.result||("보고 완료 ("+todayKey()+")");}
       patchItem(id,patch); render(); break;
     }
+    case "dc-edit": { if(!ui.dcEdit)ui.dcEdit={}; ui.dcEdit[id]=!ui.dcEdit[id]; render(); break; }
     case "meet-type": {
       const f=findItem(id); if(!f)break;
       const patch={meetType:val};

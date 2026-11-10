@@ -1803,7 +1803,7 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v40</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v41</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["dash","팀 현황"],["discuss","보고·협의"],["people","담당자"],["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   if(isLeader())tabs.splice(1,0,["assign","업무 지정"]);
@@ -2197,22 +2197,19 @@ function renderCal(){
     const dayItems=itemsOnDate(dateKey);
     const dcItems=discussOnDate(dateKey);
     const totalN=dayItems.length+dcItems.length;
+    // 중요 순서: ① 회의·일정 ② 보고 확정 ③ 업무 마감 ④ 보고 희망
+    const evItems=dayItems.filter(r=>isEv(r.it));
+    const taskItems=dayItems.filter(r=>!isEv(r.it));
+    const confDc=dcItems.filter(r=>!r.proposed);
+    const propDc=dcItems.filter(r=>r.proposed);
     let pills=""; let shown=0;
-    for(const {it} of dayItems){ if(shown>=3)break;
-      const c=isEv(it)?evColor(it):PART_COLOR[it.part||"인사"];
-      if(isEv(it)){
-        pills+='<div class="cal-pill ev'+(it.category==="회의"?" meet":"")+'" style="background:'+c.bg+';color:'+c.fg+'">'+evIcon(it)+" "+esc(it.text)+"</div>";
-      }else{
-        const doneCls=it.status==="done"?" done":"";
-        pills+='<div class="cal-pill task'+doneCls+'" style="border-left-color:'+c.fg+'">'+esc(it.text)+"</div>";
-      }
-      shown++;
-    }
-    for(const {it,proposed} of dcItems){ if(shown>=3)break;
-      const dn=(it.discussStatus==="완료")?" done":"";
-      pills+='<div class="cal-pill discuss'+(proposed?" proposed":"")+dn+'">📋 '+esc(it.text)+"</div>";
-      shown++;
-    }
+    const addEv=(it)=>{const c=evColor(it);pills+='<div class="cal-pill ev'+(it.category==="회의"?" meet":"")+'" style="background:'+c.bg+';color:'+c.fg+'">'+evIcon(it)+" "+esc(it.text)+"</div>";};
+    const addDc=(it,proposed)=>{const dn=(it.discussStatus==="완료")?" done":"";pills+='<div class="cal-pill discuss'+(proposed?" proposed":"")+dn+'">📋 '+esc(it.text)+"</div>";};
+    const addTask=(it)=>{const c=PART_COLOR[it.part||"인사"];const doneCls=it.status==="done"?" done":"";pills+='<div class="cal-pill task'+doneCls+'" style="border-left-color:'+c.fg+'">'+esc(it.text)+"</div>";};
+    for(const {it} of evItems){ if(shown>=3)break; addEv(it); shown++; }
+    for(const {it} of confDc){ if(shown>=3)break; addDc(it,false); shown++; }
+    for(const {it} of taskItems){ if(shown>=3)break; addTask(it); shown++; }
+    for(const {it} of propDc){ if(shown>=3)break; addDc(it,true); shown++; }
     if(totalN>3)pills+='<div class="cal-more">+'+(totalN-3)+"</div>";
     html+='<div class="cal-cell'+(isToday?" today":"")+(isSel?" sel":"")+'" data-action="cal-day" data-val="'+dateKey+'">'+
       '<div class="cal-date'+(dow===0?" sun":(dow===6?" sat":""))+'">'+d+"</div>"+pills+"</div>";
@@ -2236,19 +2233,22 @@ function renderCal(){
       '<div style="font-size:12px;color:var(--mut)">'+esc(it.part)+" · "+esc(it.owner)+(it.detail?" · "+esc(stripHtml(it.detail)):"")+"</div></div>"+
       '<button class="ghost danger" data-action="event-del" data-id="'+it.id+'">삭제</button></div>';
   });
-  selDiscuss.forEach(({wk,it,proposed})=>{
+  // 순서: ① 회의·일정 ② 보고 확정 ③ 업무 마감 ④ 보고 희망
+  const dcRow=({wk,it,proposed})=>{
     const slot=it.confirmSlot||it.discussSlot||"";
-    html+='<div class="cal-list-row" data-action="jump" data-id="'+it.id+'" data-val="'+wk+'" style="cursor:pointer">'+
-      '<span class="chip" style="background:#eef2ff;color:#3730a3;margin-left:0;white-space:nowrap;font-weight:600">📋 '+(proposed?"보고 희망":"보고 확정")+"</span>"+
+    return '<div class="cal-list-row" data-action="jump" data-id="'+it.id+'" data-val="'+wk+'"'+(!proposed?' style="cursor:pointer;background:#eef2ff;border-radius:10px;padding-left:10px"':' style="cursor:pointer"')+'>'+
+      '<span class="chip" style="background:'+(proposed?"#f5f3ff":"#4f46e5")+';color:'+(proposed?"#6d5bd0":"#fff")+';margin-left:0;white-space:nowrap;font-weight:600">📋 '+(proposed?"보고 희망":"보고 확정")+"</span>"+
       '<div style="flex:1"><div style="font-size:13.5px;font-weight:600">'+esc(it.text)+' <span style="font-size:11.5px;color:var(--mut);font-weight:400">'+esc(it.meetType||"1:1 보고")+(slot?" · "+esc(slot):"")+(it.discussStatus==="완료"?" · 완료":"")+"</span></div>"+
       '<div style="font-size:12px;color:var(--mut)">'+ownersOf(it).map(n=>esc(n)).join(", ")+" · "+esc(it.part||"인사")+" · "+esc(it.category)+"</div></div></div>";
-  });
+  };
+  selDiscuss.filter(r=>!r.proposed).forEach(r=>{ html+=dcRow(r); });   // 보고 확정 먼저
   selTasks.forEach(({wk,it})=>{
     html+='<div class="cal-list-row" data-action="jump" data-id="'+it.id+'" data-val="'+wk+'" style="cursor:pointer">'+
       '<span class="sr-badge '+statusClass(it.status)+'" style="font-size:11.5px">'+STATUS[it.status].label+"</span>"+
       '<div style="flex:1"><div style="font-size:13.5px;font-weight:600">'+esc(it.text)+' <span style="font-size:11.5px;color:var(--mut);font-weight:400">업무 마감</span></div>'+
       '<div style="font-size:12px;color:var(--mut)">'+esc(it.part)+" · "+esc(it.owner)+" · "+esc(it.category)+"</div></div></div>";
   });
+  selDiscuss.filter(r=>r.proposed).forEach(r=>{ html+=dcRow(r); });    // 보고 희망 뒤로
   html+='<div class="cal-add"><span style="font-size:12.5px;font-weight:600;color:var(--sub)">이 날짜에 추가:</span>'+
     '<select id="ev-type">'+EVENT_TYPES.map(t=>"<option>"+t+"</option>").join("")+"</select>"+
     '<select id="ev-owner">'+memberNames().map(mm=>'<option'+(mm===state.me?" selected":"")+">"+esc(mm)+"</option>").join("")+"</select>"+
@@ -2352,7 +2352,8 @@ function renderDash(){
   const all=state.weeks[ui.weekKey].items.filter(i=>!isEv(i));
   let html=weekNavHTML(" 팀 현황");
 
-  /* 0) 팀장 요약 — 미등록자 → 지원 필요 → 진행률 */
+  /* 0) 팀장 요약 — 팀장에게만 표시 (미등록자 → 지원 필요 → 진행률) */
+  if(isLeader()){
   const memList=state.members.filter(m=>m.role!=="팀장");
   const unreg=memList.filter(m=>!all.some(i=>hasOwner(i,m.name)));
   const bb=buildBuckets(all);
@@ -2371,6 +2372,7 @@ function renderDash(){
   // ③ 진행률
   html+='<div class="ls-block"><div class="ls-h">📈 이번 주 전체 진행률 <b>'+pct+'%</b> <span style="font-weight:400;color:var(--mut)">(완료 '+doneN+" / 전체 "+activeN+'건)</span></div><div class="ls-bar"><i style="width:'+pct+'%"></i></div></div>';
   html+="</div>";
+  }
 
   /* 1) 주간 완료율 추이 */
   const trend=weeklyTrend();
@@ -2459,15 +2461,22 @@ function renderDash(){
   /* 5) 연속 이월 경고 */
   const chronic=all.filter(i=>(i.history||[]).length>=1&&!["done","cancelled"].includes(i.status));
   if(chronic.length){
-    html+='<div class="card warn"><div class="card-title">⚠ 연속 이월 업무 ('+chronic.length+"건)</div>";
-    chronic.forEach(it=>{
-      const n=(it.history||[]).length;
-      html+='<div class="chronic-row"><span class="chip carry'+(n>=2?" hot":"")+'" style="font-size:12px;margin-left:0">'+(n+1)+"주째</span>"+
-        '<div style="flex:1"><div style="font-size:13.5px;font-weight:600">'+esc(it.text)+"</div>"+
-        '<div style="font-size:12px;color:var(--mut);margin-top:2px">'+esc(it.part||"인사")+" · "+esc(it.owner)+" · "+esc(it.category)+
-        (it.carryReason?" · 사유: "+esc(it.carryReason):" · 이월 사유 미입력")+"</div></div></div>";
-    });
-    html+='<div class="note" style="color:#A33224">2주 이상 이월된 업무는 담당자·기한을 별도 지정해 관리하는 것이 좋습니다.</div></div>';
+    const open=!!ui.chronicOpen;
+    html+='<div class="card warn"><div class="card-title chronic-head" data-action="chronic-toggle" style="cursor:pointer;display:flex;align-items:center;gap:8px;margin:0">'+
+      '<span class="dd-chev">'+(open?"▾":"▸")+"</span>⚠ 연속 이월 업무 ("+chronic.length+"건)"+
+      '<span style="margin-left:auto;font-size:12px;font-weight:400;color:var(--mut)">'+(open?"접기":"펼쳐 보기")+"</span></div>";
+    if(open){
+      html+='<div style="margin-top:12px">';
+      chronic.forEach(it=>{
+        const n=(it.history||[]).length;
+        html+='<div class="chronic-row"><span class="chip carry'+(n>=2?" hot":"")+'" style="font-size:12px;margin-left:0">'+(n+1)+"주째</span>"+
+          '<div style="flex:1"><div style="font-size:13.5px;font-weight:600">'+esc(it.text)+"</div>"+
+          '<div style="font-size:12px;color:var(--mut);margin-top:2px">'+esc(it.part||"인사")+" · "+esc(it.owner)+" · "+esc(it.category)+
+          (it.carryReason?" · 사유: "+esc(it.carryReason):" · 이월 사유 미입력")+"</div></div></div>";
+      });
+      html+='<div class="note" style="color:#A33224">2주 이상 이월된 업무는 담당자·기한을 별도 지정해 관리하는 것이 좋습니다.</div></div>';
+    }
+    html+="</div>";
   }
 
   html+='<div class="footer"><button class="report-btn" data-action="report-open">📋 팀 전체 주간보고 생성</button>'+
@@ -3259,6 +3268,7 @@ document.addEventListener("click",async (ev)=>{
       else{ui.dashExpand=val;ui.dashFilter=f;}
       render(); break;
     }
+    case "chronic-toggle": ui.chronicOpen=!ui.chronicOpen; render(); break;
     case "refresh": refreshNow(); break;
     case "setup-open": ui.view="setup"; ui.setupMsg=""; render(); break;
     case "setup-back": ui.view="week"; render(); break;

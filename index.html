@@ -1424,6 +1424,29 @@ function saveRtEditor(ed){
   const f=findItem(ed.dataset.id);
   if(f){f.it.detail=ed.innerHTML;f.it.updatedAt=todayKey();markDirty(f.it,f.wk);}
 }
+// 체크 항목을 '항상 에디터 직계 자식'으로 삽입 (중첩 방지) + 라벨 선택
+function insertCheckRow(ed){
+  ed.focus();
+  const sel=window.getSelection();
+  const row=document.createElement("div");
+  row.className="rt-check"; row.setAttribute("data-done","0");
+  row.innerHTML='<span class="rt-box" contenteditable="false"></span><span class="rt-ct">할 일</span>';
+  let ref=null;
+  if(sel&&sel.rangeCount){
+    let node=sel.getRangeAt(0).startContainer;
+    if(node!==ed){
+      if(node.nodeType===3)node=node.parentNode;
+      while(node&&node.parentNode!==ed)node=node.parentNode; // 에디터 직계 자식까지 상승
+      if(node&&node.parentNode===ed)ref=node;
+    }
+  }
+  if(ref)ed.insertBefore(row,ref.nextSibling); else ed.appendChild(row);
+  // 캐럿을 라벨 안에 놓고 '할 일' 전체 선택 → 바로 입력하면 대체됨
+  const ct=row.querySelector(".rt-ct");
+  const r=document.createRange(); r.selectNodeContents(ct);
+  sel.removeAllRanges(); sel.addRange(r);
+  saveRtEditor(ed);
+}
 
 /* ── 데이터 조작 ── */
 function ensureWeek(key){if(!state.weeks[key])state.weeks[key]={items:[]};}
@@ -1683,7 +1706,7 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v34</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v35</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["discuss","보고·협의"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   if(isLeader())tabs.splice(1,0,["assign","업무 지정"]);
@@ -3240,19 +3263,17 @@ document.addEventListener("input",(ev)=>{
 document.addEventListener("mousedown",(ev)=>{
   const b=ev.target.closest(".rt-btn");
   if(!b)return;
-  ev.preventDefault(); // 에디터 선택영역/포커스 유지
+  ev.preventDefault(); // 버튼이 포커스를 뺏지 않게 → 에디터 선택영역 유지
   const wrap=b.closest(".rt-wrap"); const ed=wrap&&wrap.querySelector(".rt-edit");
   if(!ed)return;
-  ed.focus();
   const cmd=b.dataset.rtCmd;
+  if(cmd==="check"){ insertCheckRow(ed); return; }
+  // 선택이 이미 에디터 안이면 focus()를 부르지 않는다(실브라우저에서 선택 해제 방지)
+  const sel=window.getSelection();
+  const inEd=sel&&sel.rangeCount&&ed.contains(sel.getRangeAt(0).commonAncestorContainer);
+  if(!inEd)ed.focus();
   try{
-    if(cmd==="check"){
-      document.execCommand("insertHTML",false,'<div class="rt-check" data-done="0"><span class="rt-box" contenteditable="false"></span><span class="rt-ct">할 일</span></div>');
-    }else if(cmd==="removeFormat"){
-      document.execCommand("removeFormat",false,null);
-    }else{
-      document.execCommand(cmd,false,null);
-    }
+    document.execCommand(cmd,false,null); // bold/underline/strikeThrough/removeFormat 공통
   }catch(e){}
   saveRtEditor(ed);
 });

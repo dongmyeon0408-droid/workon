@@ -1092,7 +1092,7 @@ function mergeDirty(merged){
   });
   return normalizeState(merged);
 }
-async function loadAll(){
+async function loadAll(silent){
   if(mode!=="shared"||!apiUrl){
     const raw=localStorage.getItem(KEY);
     state=normalizeState(raw?JSON.parse(raw):seedData());
@@ -1100,7 +1100,7 @@ async function loadAll(){
     setBadge("","");
     return;
   }
-  setBadge("불러오는 중…");
+  if(!silent)setBadge("불러오는 중…");
   try{
     const res=await fetch(apiUrl+"?action=all");
     const data=await res.json();
@@ -1116,8 +1116,10 @@ async function loadAll(){
     runNotiDiff();
     lastLoad=Date.now();
     cacheLocal();
-    setBadge("✓ 동기화됨","ok");
-    setTimeout(()=>{if(document.getElementById("save-badge").textContent==="✓ 동기화됨")setBadge("");},2000);
+    if(!silent){
+      setBadge("✓ 동기화됨","ok");
+      setTimeout(()=>{if(document.getElementById("save-badge").textContent==="✓ 동기화됨")setBadge("");},2000);
+    }
   }catch(e){
     const raw=localStorage.getItem(KEY);
     state=normalizeState(raw?JSON.parse(raw):seedData());
@@ -1642,7 +1644,7 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v32</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v33</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["discuss","보고·협의"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   if(isLeader())tabs.splice(1,0,["assign","업무 지정"]);
@@ -3263,13 +3265,16 @@ setInterval(async ()=>{
   if(dirty.items.size||dirty.deletes.size)return;
   if(ui.reasonModal||ui.reportOpen||ui.notiOpen)return;
   if(isTyping())return;
-  await loadAll();
+  await loadAll(true);
   render();
 },60000);
 
 /* ── 시작 ── */
 (async function init(){
   if(mode==="shared"&&apiUrl){
+    // 1) 캐시가 있으면 즉시 화면 표시 (서버 응답을 기다리지 않음 → 체감 속도 ↑)
+    try{const raw=localStorage.getItem(KEY);if(raw){state=normalizeState(JSON.parse(raw));render();}}catch(e){}
+    // 2) 서버 최신본은 백그라운드로 동기화 후 다시 렌더
     await loadAll(); render();
   }else if(mode==="personal"){
     await loadAll(); render();

@@ -201,6 +201,22 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycbzJMpVfT86W8mPohR
   .cmt-text{font-size:13.5px; color:var(--body-c)}
   .cmt-date{font-size:11.5px; color:var(--muted-soft); margin-top:1px}
   .detail-foot{display:flex; justify-content:space-between; margin-top:14px; align-items:center}
+  /* 리치 에디터 (상세 계획) */
+  .rt-wrap{border:1px solid #D7DDE8; border-radius:8px; overflow:hidden; background:#fff; margin-top:6px}
+  .rt-tb{display:flex; align-items:center; gap:3px; padding:5px 6px; background:#F6F8FB; border-bottom:1px solid #E7EDF7; flex-wrap:wrap}
+  .rt-btn{min-width:30px; height:28px; padding:0 9px; border:1px solid #D7DDE8; border-radius:6px; background:#fff; cursor:pointer; font-size:13px; color:var(--ink); line-height:1; display:inline-flex; align-items:center; justify-content:center}
+  .rt-btn:hover{background:#EEF2F8}
+  .rt-btn:active{background:#E2E8F2}
+  .rt-sep{width:1px; height:18px; background:#D7DDE8; margin:0 4px}
+  .rt-edit{min-height:84px; padding:10px 12px; font-size:14px; line-height:1.75; color:var(--ink); outline:none; word-break:break-word}
+  .rt-edit:empty:before{content:attr(data-ph); color:#9aa3b2}
+  .rt-edit:focus{box-shadow:inset 0 0 0 2px rgba(59,130,246,.15)}
+  .rt-check{display:flex; align-items:flex-start; gap:8px; margin:3px 0}
+  .rt-box{flex:none; width:18px; height:18px; margin-top:3px; border:1.5px solid #9aa3b2; border-radius:4px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:#fff; user-select:none}
+  .rt-check[data-done="1"] .rt-box{background:#111827; border-color:#111827}
+  .rt-check[data-done="1"] .rt-box:before{content:"✓"}
+  .rt-check[data-done="1"] .rt-ct{text-decoration:line-through; color:var(--muted)}
+  .rt-ct{flex:1; min-width:0}
   .hist{font-size:11.5px; color:var(--muted-soft)}
 
   /* ═══ 추가 폼 ═══ */
@@ -1386,6 +1402,29 @@ function pickerHTML(){
 
 
 
+/* ── 리치 텍스트(상세 계획) 헬퍼 ── */
+function stripHtml(s){
+  if(s==null)return "";
+  s=String(s);
+  if(s.indexOf("<")<0)return s; // 순수 텍스트
+  const d=document.createElement("div");d.innerHTML=s;
+  d.querySelectorAll(".rt-check").forEach(r=>{
+    const done=r.getAttribute("data-done")==="1";
+    r.insertBefore(document.createTextNode(done?"[v] ":"[ ] "),r.firstChild);
+  });
+  return (d.textContent||"").replace(/\s+/g," ").trim();
+}
+function detailToHtml(s){
+  s=s==null?"":String(s);
+  if(/<(br|div|span|b|i|u|s|strike|p|ul|ol|li)[ >\/]|rt-check|data-done/i.test(s))return s; // 이미 HTML
+  return esc(s).replace(/\n/g,"<br>"); // 기존 순수텍스트 → 줄바꿈 보존
+}
+function saveRtEditor(ed){
+  if(!ed||!ed.dataset)return;
+  const f=findItem(ed.dataset.id);
+  if(f){f.it.detail=ed.innerHTML;f.it.updatedAt=todayKey();markDirty(f.it,f.wk);}
+}
+
 /* ── 데이터 조작 ── */
 function ensureWeek(key){if(!state.weeks[key])state.weeks[key]={items:[]};}
 function findItem(id){
@@ -1522,7 +1561,7 @@ function downloadCSV(){
   const e=v=>'"'+String(v??"").replaceAll('"','""')+'"';
   Object.keys(state.weeks).sort().forEach(wk=>{
     state.weeks[wk].items.forEach(it=>{
-      rows.push([isEv(it)?"일정":"업무",it.taskNo,weekLabel(wk).short,it.part||"인사",it.owner,it.category,it.chain||"",it.step||"",it.text,it.detail,it.priority,it.dueDate,
+      rows.push([isEv(it)?"일정":"업무",it.taskNo,weekLabel(wk).short,it.part||"인사",it.owner,it.category,it.chain||"",it.step||"",it.text,stripHtml(it.detail),it.priority,it.dueDate,
         (STATUS[it.status]||{}).label||it.status,it.result,it.carryReason,(it.history||[]).length,
         (it.comments||[]).map(c=>c.author+": "+c.text).join(" / ")].map(e));
     });
@@ -1644,7 +1683,7 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v33</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v34</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["discuss","보고·협의"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   if(isLeader())tabs.splice(1,0,["assign","업무 지정"]);
@@ -1791,7 +1830,18 @@ function itemCardHTML(it,showOwner,groupOwner){
         CARRY_REASONS.map(r=>'<option'+(it.carryReason===r?" selected":"")+">"+r+"</option>").join("")+"</select></label>";
     }
     html+='<label class="fld block">업무명 수정<input data-field="text" data-id="'+it.id+'" value="'+esc(it.text)+'" style="width:100%"></label>'+
-      '<label class="fld block">상세 계획 · 예상 결과물<textarea data-field="detail" data-id="'+it.id+'" placeholder="무엇을 언제까지 어떤 결과물로 완료할지">'+esc(it.detail)+"</textarea></label>"+
+      '<div class="fld block">상세 계획 · 예상 결과물'+
+        '<div class="rt-wrap">'+
+          '<div class="rt-tb">'+
+            '<button type="button" class="rt-btn" data-rt-cmd="bold" title="굵게"><b>B</b></button>'+
+            '<button type="button" class="rt-btn" data-rt-cmd="underline" title="밑줄"><u>U</u></button>'+
+            '<button type="button" class="rt-btn" data-rt-cmd="strikeThrough" title="취소선(가리기)"><s>S</s></button>'+
+            '<span class="rt-sep"></span>'+
+            '<button type="button" class="rt-btn" data-rt-cmd="check" title="체크 항목 추가">☑ 체크</button>'+
+            '<button type="button" class="rt-btn" data-rt-cmd="removeFormat" title="글자 서식 지우기">✕ 서식</button>'+
+          '</div>'+
+          '<div class="rt-edit" contenteditable="true" data-rt="detail" data-id="'+it.id+'" data-ph="무엇을 언제까지 어떤 결과물로 완료할지 · 체크항목은 ☑, 완료한 건 클릭하면 줄이 그어집니다">'+detailToHtml(it.detail)+'</div>'+
+        '</div></div>'+
       '<label class="fld block">📝 결과 메모 (상세)<textarea data-field="result" data-id="'+it.id+'" placeholder="진행 결과·성과를 자유롭게 기록 (예: 만족도 4.4/5.0 · 결재 완료 · 링크). 위 한 줄 입력칸과 같은 내용입니다.">'+esc(it.result)+"</textarea></label>";
     html+='<div style="margin-top:14px"><div style="font-size:12.5px;font-weight:600;color:var(--sub);margin-bottom:6px">코멘트 ('+(it.comments||[]).length+")</div>";
     (it.comments||[]).forEach(c=>{
@@ -2040,7 +2090,7 @@ function renderCal(){
     if(isEv(it)){
       html+='<div class="cal-list-row"><span class="chip" style="background:'+c.bg+';color:'+c.fg+';margin-left:0">'+esc(it.category)+"</span>"+
         '<div style="flex:1"><div style="font-size:13.5px;font-weight:600">'+esc(it.text)+"</div>"+
-        '<div style="font-size:12px;color:var(--mut)">'+esc(it.part)+" · "+esc(it.owner)+(it.detail?" · "+esc(it.detail):"")+"</div></div>"+
+        '<div style="font-size:12px;color:var(--mut)">'+esc(it.part)+" · "+esc(it.owner)+(it.detail?" · "+esc(stripHtml(it.detail)):"")+"</div></div>"+
         '<button class="ghost danger" data-action="event-del" data-id="'+it.id+'">삭제</button></div>';
     }else{
       html+='<div class="cal-list-row" data-action="jump" data-id="'+it.id+'" data-val="'+wk+'" style="cursor:pointer">'+
@@ -2500,7 +2550,7 @@ function discussRow(it,wk){
     '<span class="mt-badge'+(isTeam?" team":"")+'">'+(isTeam?"👥 팀 회의":"🧑‍💼 1:1 보고")+"</span>"+esc(it.text)+'</div>'+
     '<div class="dc-meta">상신 '+esc(primaryOwner(it))+" · "+esc(it.part||"인사")+" · "+esc(it.category)+" · "+STATUS[it.status].label+
     (isTeam&&atts.length?' · 참석 '+atts.map(esc).join("·"):"")+
-    (it.detail?' · '+esc(it.detail):"")+"</div></div>"+
+    (it.detail?' · '+esc(stripHtml(it.detail)):"")+"</div></div>"+
     (it.dueDate?'<span class="dc-due">⏰ 마감 '+it.dueDate.slice(5).replace("-",".")+"</span>":"")+"</div>";
 
   // 제안 → 확정 2단
@@ -3164,6 +3214,8 @@ document.addEventListener("change",(ev)=>{
 
 document.addEventListener("input",(ev)=>{
   const el=ev.target;
+  // 리치 에디터(상세 계획) 타이핑 → innerHTML 즉시 저장
+  if(el.dataset&&el.dataset.rt==="detail"){saveRtEditor(el);return;}
   // 결과 메모·텍스트/상세 입력: 타이핑 즉시 상태 반영(포커스·커서 유지, 재렌더 안 함) → 동기화로 사라지는 문제 방지
   if(el.dataset&&el.dataset.id&&["result","detail","text"].includes(el.dataset.field)){
     const f=findItem(el.dataset.id);
@@ -3183,6 +3235,44 @@ document.addEventListener("input",(ev)=>{
   }
 });
 
+/* ── 리치 에디터(상세 계획): 툴바·체크박스·붙여넣기 ── */
+// 툴바 버튼: mousedown 시 선택영역 유지 후 서식 적용
+document.addEventListener("mousedown",(ev)=>{
+  const b=ev.target.closest(".rt-btn");
+  if(!b)return;
+  ev.preventDefault(); // 에디터 선택영역/포커스 유지
+  const wrap=b.closest(".rt-wrap"); const ed=wrap&&wrap.querySelector(".rt-edit");
+  if(!ed)return;
+  ed.focus();
+  const cmd=b.dataset.rtCmd;
+  try{
+    if(cmd==="check"){
+      document.execCommand("insertHTML",false,'<div class="rt-check" data-done="0"><span class="rt-box" contenteditable="false"></span><span class="rt-ct">할 일</span></div>');
+    }else if(cmd==="removeFormat"){
+      document.execCommand("removeFormat",false,null);
+    }else{
+      document.execCommand(cmd,false,null);
+    }
+  }catch(e){}
+  saveRtEditor(ed);
+});
+// 체크박스 클릭 → 완료 토글(줄긋기)
+document.addEventListener("click",(ev)=>{
+  const box=ev.target.closest(".rt-box");
+  if(!box)return;
+  const row=box.closest(".rt-check"); if(!row)return;
+  row.setAttribute("data-done",row.getAttribute("data-done")==="1"?"0":"1");
+  const ed=box.closest(".rt-edit"); if(ed)saveRtEditor(ed);
+});
+// 붙여넣기는 순수 텍스트로만 (서식/스크립트 주입 방지)
+document.addEventListener("paste",(ev)=>{
+  const ed=ev.target.closest&&ev.target.closest(".rt-edit");
+  if(!ed)return;
+  ev.preventDefault();
+  const t=((ev.clipboardData||window.clipboardData).getData("text/plain")||"");
+  try{document.execCommand("insertText",false,t);}catch(e){}
+  saveRtEditor(ed);
+});
 
 /* ── 드래그 앤 드롭: 카드를 다른 분류/담당자 칸으로 이동 ── */
 let _dragId=null;

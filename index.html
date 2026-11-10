@@ -217,6 +217,8 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycbzJMpVfT86W8mPohR
   .rt-edit *::selection{background:#cfe0ff; color:#111827; -webkit-text-fill-color:#111827}
   .rt-check[data-done="1"] .rt-ct, .rt-check[data-done="1"] .rt-ct *{color:var(--muted); -webkit-text-fill-color:var(--muted)}
   .rt-edit .rt-box, .rt-edit .rt-box:before{color:#fff; -webkit-text-fill-color:#fff}  /* 체크 ✓ 흰색 유지 */
+  .rt-edit b, .rt-edit strong{font-weight:800}  /* 볼드 더 진하게 */
+  .rt-edit mark{background:#fff3a0; color:#111827; -webkit-text-fill-color:#111827; padding:0 2px; border-radius:3px}  /* 형광펜 */
   .rt-check{display:flex; align-items:flex-start; gap:8px; margin:3px 0}
   .rt-box{flex:none; width:18px; height:18px; margin-top:3px; border:1.5px solid #9aa3b2; border-radius:4px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:#fff; user-select:none}
   .rt-check[data-done="1"] .rt-box{background:#111827; border-color:#111827}
@@ -1454,10 +1456,24 @@ function insertCheckRow(ed){
   sel.removeAllRanges(); sel.addRange(r);
   saveRtEditor(ed);
 }
-// 볼드/밑줄/취소선: execCommand 대신 Range로 직접 감싸기/풀기 (브라우저 호환·안정)
-function rtInline(ed,tag){
+// 에디터 내 마지막 선택영역 저장 (버튼 클릭 때 선택이 사라지는 브라우저 대응)
+let _rtRange=null, _rtRangeEd=null;
+document.addEventListener("selectionchange",()=>{
   const sel=window.getSelection();
   if(!sel||!sel.rangeCount)return;
+  const r=sel.getRangeAt(0);
+  let node=r.commonAncestorContainer; if(node.nodeType===3)node=node.parentNode;
+  const ed=node&&node.closest?node.closest(".rt-edit"):null;
+  if(ed&&!r.collapsed){ _rtRange=r.cloneRange(); _rtRangeEd=ed; }
+});
+// 볼드/밑줄/취소선/형광펜: Range로 직접 감싸기/풀기 (브라우저 호환·안정)
+function rtInline(ed,tag){
+  const sel=window.getSelection();
+  // 선택이 사라졌으면 저장해둔 선택 복원
+  if((!sel.rangeCount||sel.getRangeAt(0).collapsed)&&_rtRange&&_rtRangeEd===ed){
+    try{sel.removeAllRanges(); sel.addRange(_rtRange);}catch(e){}
+  }
+  if(!sel.rangeCount)return;
   const range=sel.getRangeAt(0);
   if(!ed.contains(range.commonAncestorContainer)||range.collapsed)return; // 선택 필요
   let a=range.commonAncestorContainer; if(a.nodeType===3)a=a.parentNode;
@@ -1753,7 +1769,7 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v37</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v38</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["discuss","보고·협의"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   if(isLeader())tabs.splice(1,0,["assign","업무 지정"]);
@@ -1906,6 +1922,7 @@ function itemCardHTML(it,showOwner,groupOwner){
             '<button type="button" class="rt-btn" data-rt-cmd="b" title="굵게 (선택 후 클릭)"><b>B</b></button>'+
             '<button type="button" class="rt-btn" data-rt-cmd="u" title="밑줄 (선택 후 클릭)"><u>U</u></button>'+
             '<button type="button" class="rt-btn" data-rt-cmd="s" title="취소선·가리기 (선택 후 클릭)"><s>S</s></button>'+
+            '<button type="button" class="rt-btn rt-hl" data-rt-cmd="mark" title="형광펜 (선택 후 클릭)"><span style="background:#fff3a0;padding:0 4px;border-radius:3px">강조</span></button>'+
             '<span class="rt-sep"></span>'+
             '<button type="button" class="rt-btn" data-rt-cmd="check" title="체크 항목 추가">☑ 체크</button>'+
           '</div>'+

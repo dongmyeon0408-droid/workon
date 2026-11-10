@@ -208,7 +208,7 @@ window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycbzJMpVfT86W8mPohR
   .rt-btn:hover{background:#EEF2F8}
   .rt-btn:active{background:#E2E8F2}
   .rt-sep{width:1px; height:18px; background:#D7DDE8; margin:0 4px}
-  .rt-edit{min-height:84px; padding:10px 12px; font-size:14px; line-height:1.75; color:#111827; -webkit-text-fill-color:#111827; caret-color:#111827; outline:none; word-break:break-word}
+  .rt-edit{min-height:84px; padding:10px 12px; font-size:14px; line-height:1.75; color:#111827; -webkit-text-fill-color:#111827; caret-color:#111827; outline:none; word-break:break-word; white-space:pre-wrap}
   .rt-edit, .rt-edit *{color:#111827; -webkit-text-fill-color:#111827}
   .rt-edit:empty:before{content:attr(data-ph); color:#9aa3b2; -webkit-text-fill-color:#9aa3b2}
   .rt-edit:focus{box-shadow:inset 0 0 0 2px rgba(59,130,246,.15)}
@@ -1412,18 +1412,19 @@ function pickerHTML(){
 function stripHtml(s){
   if(s==null)return "";
   s=String(s);
-  if(s.indexOf("<")<0)return s; // 순수 텍스트
-  const d=document.createElement("div");d.innerHTML=s;
+  if(s.indexOf("<")<0)return s.replace(/[\n​]+/g," ").replace(/\s+/g," ").trim(); // 순수 텍스트(줄바꿈→공백)
+  const d=document.createElement("div");
+  d.innerHTML=s.replace(/<(div|br|p|li)/gi," <$1"); // 블록 경계에 공백
   d.querySelectorAll(".rt-check").forEach(r=>{
     const done=r.getAttribute("data-done")==="1";
-    r.insertBefore(document.createTextNode(done?"[v] ":"[ ] "),r.firstChild);
+    r.insertBefore(document.createTextNode(done?" [v] ":" [ ] "),r.firstChild);
   });
-  return (d.textContent||"").replace(/\s+/g," ").trim();
+  return (d.textContent||"").replace(/[\n​]+/g," ").replace(/\s+/g," ").trim();
 }
 function detailToHtml(s){
   s=s==null?"":String(s);
   if(/<(br|div|span|b|i|u|s|strike|p|ul|ol|li)[ >\/]|rt-check|data-done/i.test(s))return s; // 이미 HTML
-  return esc(s).replace(/\n/g,"<br>"); // 기존 순수텍스트 → 줄바꿈 보존
+  return esc(s); // 순수텍스트: 이스케이프만 (줄바꿈은 pre-wrap이 \n 그대로 표시)
 }
 function saveRtEditor(ed){
   if(!ed||!ed.dataset)return;
@@ -1451,6 +1452,46 @@ function insertCheckRow(ed){
   const ct=row.querySelector(".rt-ct");
   const r=document.createRange(); r.selectNodeContents(ct);
   sel.removeAllRanges(); sel.addRange(r);
+  saveRtEditor(ed);
+}
+// 볼드/밑줄/취소선: execCommand 대신 Range로 직접 감싸기/풀기 (브라우저 호환·안정)
+function rtInline(ed,tag){
+  const sel=window.getSelection();
+  if(!sel||!sel.rangeCount)return;
+  const range=sel.getRangeAt(0);
+  if(!ed.contains(range.commonAncestorContainer)||range.collapsed)return; // 선택 필요
+  let a=range.commonAncestorContainer; if(a.nodeType===3)a=a.parentNode;
+  const existing=a.closest?a.closest(tag):null;
+  if(existing&&ed.contains(existing)&&existing!==ed){
+    // 토글 해제: 태그 벗기기
+    const parent=existing.parentNode;
+    while(existing.firstChild)parent.insertBefore(existing.firstChild,existing);
+    parent.removeChild(existing); ed.normalize();
+  }else{
+    const el=document.createElement(tag);
+    try{range.surroundContents(el);}
+    catch(e){const frag=range.extractContents();el.appendChild(frag);range.insertNode(el);}
+    const nr=document.createRange(); nr.selectNodeContents(el);
+    sel.removeAllRanges(); sel.addRange(nr);
+  }
+  saveRtEditor(ed);
+}
+// 엔터: 줄바꿈 문자(\n) 삽입. insertText는 커서·트레일링을 브라우저가 알아서 처리해 안정적
+// .rt-edit는 white-space:pre-wrap 이라 \n 이 그대로 줄바꿈으로 보임
+function rtEnter(ed){
+  ed.focus();
+  let ok=false;
+  try{ ok=document.execCommand("insertText",false,"\n"); }catch(e){}
+  if(!ok){ // 폴백: 수동 삽입 + 트레일링 기준점
+    const sel=window.getSelection(); if(!sel||!sel.rangeCount)return;
+    const range=sel.getRangeAt(0); range.deleteContents();
+    const nl=document.createTextNode("\n");
+    range.insertNode(nl);
+    let after=nl.nextSibling;
+    if(!after||after.nodeType!==3){ after=document.createTextNode("​"); nl.parentNode.insertBefore(after,nl.nextSibling); }
+    range.setStart(after,0); range.collapse(true);
+    sel.removeAllRanges(); sel.addRange(range);
+  }
   saveRtEditor(ed);
 }
 
@@ -1712,7 +1753,7 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v36</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v37</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["discuss","보고·협의"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   if(isLeader())tabs.splice(1,0,["assign","업무 지정"]);
@@ -1862,12 +1903,11 @@ function itemCardHTML(it,showOwner,groupOwner){
       '<div class="fld block">상세 계획 · 예상 결과물'+
         '<div class="rt-wrap">'+
           '<div class="rt-tb">'+
-            '<button type="button" class="rt-btn" data-rt-cmd="bold" title="굵게"><b>B</b></button>'+
-            '<button type="button" class="rt-btn" data-rt-cmd="underline" title="밑줄"><u>U</u></button>'+
-            '<button type="button" class="rt-btn" data-rt-cmd="strikeThrough" title="취소선(가리기)"><s>S</s></button>'+
+            '<button type="button" class="rt-btn" data-rt-cmd="b" title="굵게 (선택 후 클릭)"><b>B</b></button>'+
+            '<button type="button" class="rt-btn" data-rt-cmd="u" title="밑줄 (선택 후 클릭)"><u>U</u></button>'+
+            '<button type="button" class="rt-btn" data-rt-cmd="s" title="취소선·가리기 (선택 후 클릭)"><s>S</s></button>'+
             '<span class="rt-sep"></span>'+
             '<button type="button" class="rt-btn" data-rt-cmd="check" title="체크 항목 추가">☑ 체크</button>'+
-            '<button type="button" class="rt-btn" data-rt-cmd="removeFormat" title="글자 서식 지우기">✕ 서식</button>'+
           '</div>'+
           '<div class="rt-edit" contenteditable="true" data-rt="detail" data-id="'+it.id+'" data-ph="무엇을 언제까지 어떤 결과물로 완료할지 · 체크항목은 ☑, 완료한 건 클릭하면 줄이 그어집니다">'+detailToHtml(it.detail)+'</div>'+
         '</div></div>'+
@@ -3265,6 +3305,16 @@ document.addEventListener("input",(ev)=>{
 });
 
 /* ── 리치 에디터(상세 계획): 툴바·체크박스·붙여넣기 ── */
+// 엔터 줄바꿈 — beforeinput으로 처리. 브라우저가 '한글 조합 완료'와 '줄바꿈'을 구분해 이벤트를 주므로
+// insertParagraph/insertLineBreak(=순수 줄바꿈 의도)일 때만 \n 삽입 → IME 타이밍 문제 없음
+document.addEventListener("beforeinput",(ev)=>{
+  const ed=ev.target&&ev.target.closest&&ev.target.closest(".rt-edit");
+  if(!ed)return;
+  if(ev.inputType==="insertParagraph"||ev.inputType==="insertLineBreak"){
+    ev.preventDefault();
+    rtEnter(ed);
+  }
+},true);
 // 툴바 버튼: mousedown 시 선택영역 유지 후 서식 적용
 document.addEventListener("mousedown",(ev)=>{
   const b=ev.target.closest(".rt-btn");
@@ -3274,14 +3324,7 @@ document.addEventListener("mousedown",(ev)=>{
   if(!ed)return;
   const cmd=b.dataset.rtCmd;
   if(cmd==="check"){ insertCheckRow(ed); return; }
-  // 선택이 이미 에디터 안이면 focus()를 부르지 않는다(실브라우저에서 선택 해제 방지)
-  const sel=window.getSelection();
-  const inEd=sel&&sel.rangeCount&&ed.contains(sel.getRangeAt(0).commonAncestorContainer);
-  if(!inEd)ed.focus();
-  try{
-    document.execCommand(cmd,false,null); // bold/underline/strikeThrough/removeFormat 공통
-  }catch(e){}
-  saveRtEditor(ed);
+  rtInline(ed,cmd); // b / u / s — Range로 직접 처리
 });
 // 체크박스 클릭 → 완료 토글(줄긋기)
 document.addEventListener("click",(ev)=>{

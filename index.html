@@ -907,11 +907,15 @@ const isEv=(it)=>it&&(it.isEvent==="1"||it.isEvent===1||it.isEvent===true);
 /* ── 전역 상태 ── */
 let apiUrl=localStorage.getItem(API_KEY)||"";
 let mode=localStorage.getItem(MODE_KEY)||"";
-/* 파일 상단 <팀 공유 설정>에 URL이 입력돼 있으면, 처음 접속한 팀원도 설정 없이 자동 연결 */
+/* 파일 상단 <팀 공유 설정>에 URL이 입력돼 있으면, 그 URL을 '항상' 우선 적용.
+   예전 방문 때 브라우저에 저장된 옛 서버 주소가 남아 있어도, 파일에 내장된 최신 주소로 강제 갱신한다.
+   → index.html만 새로 올리면 모든 팀원이 같은(최신) 서버에 자동 연결된다. */
 const PRESET_URL=(typeof window!=="undefined"&&window.TEAM_API_URL?String(window.TEAM_API_URL):"").trim();
-if(PRESET_URL&&!localStorage.getItem(API_KEY)&&!localStorage.getItem(MODE_KEY)){
-  apiUrl=PRESET_URL; mode="shared";
-  try{localStorage.setItem(API_KEY,apiUrl);localStorage.setItem(MODE_KEY,"shared");}catch(e){}
+if(PRESET_URL){
+  if(apiUrl!==PRESET_URL||mode!=="shared"){
+    apiUrl=PRESET_URL; mode="shared";
+    try{localStorage.setItem(API_KEY,apiUrl);localStorage.setItem(MODE_KEY,"shared");}catch(e){}
+  }
 }
 let state=null;
 let lastLoad=0;
@@ -1638,7 +1642,7 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v30</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v31</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["discuss","보고·협의"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   if(isLeader())tabs.splice(1,0,["assign","업무 지정"]);

@@ -8,7 +8,7 @@
      ★ 팀 공유 설정 ★  (URL 입력 완료 상태 — 수정 불필요)
      ═══════════════════════════════════════════════════════════ -->
 <script>
-window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycby-WndOIo_y0zQmkfby2IRJ2WqvjTj-qKztRJZpv2UwjMr87AGNyzJWx1UnQbDaBmn0pw/exec";
+window.TEAM_API_URL = "https://script.google.com/macros/s/AKfycbzJMpVfT86W8mPohRvtLLyeJTUADHb1aIbMrM01DFkzDnLzlDdU_HW39A6d2nR2GGZH/exec";
 </script>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1642,7 +1642,7 @@ function renderTabs(){
   const modeChip=mode==="shared"
     ?'<span class="mode-chip shared">팀 공유</span>'
     :(mode==="personal"?'<span class="mode-chip personal">개인 모드</span>':"");
-  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v31</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
+  eyebrow.innerHTML="KUKJEON 인재문화팀 · 주간 업무 허브"+modeChip+' <span style="color:var(--muted-soft);font-size:11px">v32</span>'+(mode==="shared"&&srvVersion?' <span style="color:'+(Number(srvVersion)>=11?"var(--muted-soft)":"#dc2626")+';font-size:11px">· 서버 v'+esc(srvVersion)+(Number(srvVersion)>=11?"":" (재배포 필요)")+"</span>":"");
   if(ui.view==="setup"){document.getElementById("tabs").innerHTML="";return;}
   const tabs=[["week","주간 업무"],["upload","계획 업로드"],["cal","캘린더"],["dash","팀 현황"],["discuss","보고·협의"],["people","담당자"],["msg","메시지·칭찬"],["mgr","일괄 관리"],["search","검색·이력"],["guide","사용법"]];
   if(isLeader())tabs.splice(1,0,["assign","업무 지정"]);
